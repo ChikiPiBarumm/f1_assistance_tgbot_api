@@ -1,0 +1,6 @@
+@F1_Bot_HostAddress = http://localhost:5063
+
+GET {{F1_Bot_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

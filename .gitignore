@@ -1,0 +1,30 @@
+# Build results
+bin/
+obj/
+
+# Rider
+.idea/
+*.sln.iml
+
+# User-specific files
+*.user
+*.userosscache
+*.suo
+*.userprefs
+*.csproj.user
+
+# Visual Studio / VSCode (if you use them later)
+.vs/
+.vscode/
+
+# NuGet
+*.nupkg
+packages/
+*.snupkg
+
+# Logs
+*.log
+
+# Other
+*.tmp
+*.temp
