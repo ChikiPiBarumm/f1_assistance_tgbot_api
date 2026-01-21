@@ -39,11 +39,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Health check endpoint
-app.MapGet("/api/health", () =>
-{
-    return new { status = "ok" };
-});
+// // Health check endpoint
+// app.MapGet("/api/health", () =>
+// {
+//     return new { status = "ok" };
+// });
 
 // Get all races
 app.MapGet("/api/races", async (ICalendarService calendarService) =>

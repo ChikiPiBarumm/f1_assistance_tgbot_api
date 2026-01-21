@@ -1,80 +1,110 @@
 ﻿using F1_Bot.Domain.Models;
 using F1_Bot.Infrastructure.OpenF1;
+using Microsoft.Extensions.Logging;
 
 namespace F1_Bot.Services;
 
-// Standings service that uses OpenF1 API
 public class OpenF1StandingsService : IStandingsService
 {
     private readonly IOpenF1Client _openF1Client;
+    private readonly ILogger<OpenF1StandingsService> _logger;
 
-    public OpenF1StandingsService(IOpenF1Client openF1Client)
+    public OpenF1StandingsService(IOpenF1Client openF1Client, ILogger<OpenF1StandingsService> logger)
     {
         _openF1Client = openF1Client;
+        _logger = logger;
     }
 
     public async Task<List<DriverStanding>> GetDriverStandingsAsync()
     {
-        const string sessionKey = "latest";
-        
-        // We'll assume "latest" session gives us current championship standings.
-        var championship = await _openF1Client.GetDriverChampionshipAsync("latest");
+        try
+        {
+            const string sessionKey = "latest";
+            _logger.LogInformation("Getting driver standings");
 
-        // Get drivers list for the current year to enrich names and team names
-        var drivers = await _openF1Client.GetDriversAsync(sessionKey);
+            var championship = await _openF1Client.GetDriverChampionshipAsync(sessionKey);
+            var drivers = await _openF1Client.GetDriversAsync(sessionKey);
 
-        // Build a lookup dictionary: driver_number -> driver DTO
-        var driverLookup = drivers
-            .GroupBy(d => d.Driver_Number)
-            .ToDictionary(g => g.Key, g => g.First());
-
-        // Map championship data to our domain model, using driver info when available
-        var standings = championship
-            .OrderBy(d => d.Position_Current)
-            .Select(d =>
+            if (championship.Count == 0)
             {
-                // Try to find matching driver info
-                if (driverLookup.TryGetValue(d.Driver_Number, out var driverInfo))
+                _logger.LogWarning("No championship data found for session {SessionKey}", sessionKey);
+                return new List<DriverStanding>();
+            }
+
+            var driverLookup = drivers
+                .GroupBy(d => d.Driver_Number)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var standings = championship
+                .OrderBy(d => d.Position_Current)
+                .Select(d =>
                 {
+                    if (driverLookup.TryGetValue(d.Driver_Number, out var driverInfo))
+                    {
+                        return new DriverStanding
+                        {
+                            Position = d.Position_Current,
+                            DriverName = driverInfo.Full_Name,
+                            DriverNumber = d.Driver_Number,
+                            TeamName = driverInfo.Team_Name,
+                            Points = (int)d.Points_Current
+                        };
+                    }
+
+                    _logger.LogWarning("Driver #{DriverNumber} not found in drivers list", d.Driver_Number);
                     return new DriverStanding
                     {
                         Position = d.Position_Current,
-                        DriverName = driverInfo.Full_Name,
+                        DriverName = $"Driver #{d.Driver_Number}",
                         DriverNumber = d.Driver_Number,
-                        TeamName = driverInfo.Team_Name,
+                        TeamName = "Unknown Team",
                         Points = (int)d.Points_Current
                     };
-                }
+                })
+                .ToList();
 
-                // Fallback if driver info is missing
-                return new DriverStanding
-                {
-                    Position = d.Position_Current,
-                    DriverName = $"Driver #{d.Driver_Number}",
-                    DriverNumber = d.Driver_Number,
-                    TeamName = "Unknown Team",
-                    Points = (int)d.Points_Current
-                };
-            })
-            .ToList();
-
-        return standings;
+            _logger.LogInformation("Successfully retrieved {Count} driver standings", standings.Count);
+            return standings;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while getting driver standings");
+            return new List<DriverStanding>();
+        }
     }
 
     public async Task<List<TeamStanding>> GetTeamStandingsAsync()
     {
-        var openF1Teams = await _openF1Client.GetTeamChampionshipAsync("latest");
+        try
+        {
+            const string sessionKey = "latest";
+            _logger.LogInformation("Getting team standings");
 
-        var standings = openF1Teams
-            .OrderBy(t => t.Position_Current)
-            .Select(t => new TeamStanding
+            var openF1Teams = await _openF1Client.GetTeamChampionshipAsync(sessionKey);
+
+            if (openF1Teams.Count == 0)
             {
-                Position = t.Position_Current,
-                TeamName = t.Team_Name,
-                Points = (int)t.Points_Current
-            })
-            .ToList();
+                _logger.LogWarning("No team championship data found for session {SessionKey}", sessionKey);
+                return new List<TeamStanding>();
+            }
 
-        return standings;
+            var standings = openF1Teams
+                .OrderBy(t => t.Position_Current)
+                .Select(t => new TeamStanding
+                {
+                    Position = t.Position_Current,
+                    TeamName = t.Team_Name,
+                    Points = (int)t.Points_Current
+                })
+                .ToList();
+
+            _logger.LogInformation("Successfully retrieved {Count} team standings", standings.Count);
+            return standings;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while getting team standings");
+            return new List<TeamStanding>();
+        }
     }
 }

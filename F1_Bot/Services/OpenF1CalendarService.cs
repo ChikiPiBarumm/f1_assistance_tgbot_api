@@ -1,55 +1,88 @@
 ﻿using F1_Bot.Domain.Models;
 using F1_Bot.Infrastructure.OpenF1;
+using Microsoft.Extensions.Logging;
 
 namespace F1_Bot.Services;
 
-// Calendar service that uses OpenF1 data
 public class OpenF1CalendarService : ICalendarService
 {
     private readonly IOpenF1Client _openF1Client;
+    private readonly ILogger<OpenF1CalendarService> _logger;
 
-    public OpenF1CalendarService(IOpenF1Client openF1Client)
+    public OpenF1CalendarService(IOpenF1Client openF1Client, ILogger<OpenF1CalendarService> logger)
     {
         _openF1Client = openF1Client;
+        _logger = logger;
     }
 
     public async Task<List<Race>> GetRacesAsync()
     {
-        // For now we hard-code the year.
-        // Later we can make this configurable (e.g. from appsettings).
-        var year = DateTime.UtcNow.Year;
+        try
+        {
+            var year = DateTime.UtcNow.Year;
+            _logger.LogInformation("Getting race calendar for year {Year}", year);
 
-        var meetings = await _openF1Client.GetMeetingsAsync(year);
+            var meetings = await _openF1Client.GetMeetingsAsync(year);
 
-        // Map OpenF1MeetingDto -> Race
-        var races = meetings
-            .OrderBy(m => m.Date_Start)
-            .Select((m, index) => new Race
+            if (meetings.Count == 0)
             {
-                Id = m.Meeting_Key,
-                Name = m.Meeting_Name,
-                CircuitName = m.Location, // We don't have circuit name directly yet
-                City = m.Location,
-                Country = m.Country_Name,
-                RoundNumber = index + 1,
-                Date = m.Date_Start,
-                Status = m.Date_End < DateTime.UtcNow ? "Completed" : "Upcoming"
-            })
-            .ToList();
+                _logger.LogWarning("No meetings found for year {Year}", year);
+                return new List<Race>();
+            }
 
-        return races;
+            var races = meetings
+                .OrderBy(m => m.Date_Start)
+                .Select((m, index) => new Race
+                {
+                    Id = m.Meeting_Key,
+                    Name = m.Meeting_Name,
+                    CircuitName = m.Location,
+                    City = m.Location,
+                    Country = m.Country_Name,
+                    RoundNumber = index + 1,
+                    Date = m.Date_Start,
+                    Status = m.Date_End < DateTime.UtcNow ? "Completed" : "Upcoming"
+                })
+                .ToList();
+
+            _logger.LogInformation("Successfully mapped {Count} races from OpenF1 data", races.Count);
+            return races;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while getting race calendar");
+            return new List<Race>();
+        }
     }
 
     public async Task<Race?> GetNextRaceAsync()
     {
-        var races = await GetRacesAsync();
+        try
+        {
+            _logger.LogDebug("Getting next upcoming race");
 
-        // Find the first upcoming race by date
-        var nextRace = races
-            .Where(r => r.Status == "Upcoming")
-            .OrderBy(r => r.Date)
-            .FirstOrDefault();
+            var races = await GetRacesAsync();
 
-        return nextRace;
+            var nextRace = races
+                .Where(r => r.Status == "Upcoming")
+                .OrderBy(r => r.Date)
+                .FirstOrDefault();
+
+            if (nextRace == null)
+            {
+                _logger.LogWarning("No upcoming race found");
+            }
+            else
+            {
+                _logger.LogDebug("Next race: {RaceName} on {Date}", nextRace.Name, nextRace.Date);
+            }
+
+            return nextRace;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while getting next race");
+            return null;
+        }
     }
 }
