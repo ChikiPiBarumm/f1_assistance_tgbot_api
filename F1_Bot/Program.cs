@@ -1,4 +1,5 @@
 using F1_Bot.Services;
+using F1_Bot.Infrastructure.OpenF1;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -6,9 +7,16 @@ var builder = WebApplication.CreateBuilder(args);
 // This sets up OpenAPI (the machine-readable API description).
 builder.Services.AddOpenApi();
 
+// Register HttpClient for OpenF1
+builder.Services.AddHttpClient<IOpenF1Client, OpenF1Client>(client =>
+{
+    client.BaseAddress = new Uri("https://api.openf1.org");
+});
+
 // Register our F1 services
-builder.Services.AddScoped<ICalendarService, FakeCalendarService>();
-builder.Services.AddScoped<IStandingsService, FakeStandingsService>();
+builder.Services.AddScoped<ICalendarService, OpenF1CalendarService>();
+builder.Services.AddScoped<IStandingsService, OpenF1StandingsService>();
+builder.Services.AddScoped<IRaceResultsService, OpenF1RaceResultsService>();
 
 var app = builder.Build();
 
@@ -69,6 +77,18 @@ app.MapGet("/api/standings/teams", async (IStandingsService standingsService) =>
 {
     var standings = await standingsService.GetTeamStandingsAsync();
     return Results.Ok(standings);
+});
+
+app.MapGet("/api/races/last/results", async (IRaceResultsService raceResultsService) =>
+{
+    var results = await raceResultsService.GetLastRaceResultsAsync();
+
+    if (results.Count == 0)
+    {
+        return Results.NotFound(new { message = "No race results found for the latest race" });
+    }
+
+    return Results.Ok(results);
 });
 
 app.Run();
