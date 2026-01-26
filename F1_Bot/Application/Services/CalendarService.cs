@@ -5,16 +5,16 @@ using Microsoft.Extensions.Logging;
 
 namespace F1_Bot.Services;
 
-public class OpenF1CalendarService : ICalendarService
+public class CalendarService : ICalendarService
 {
     private readonly IOpenF1Client _openF1Client;
     private readonly IMemoryCache _cache;
-    private readonly ILogger<OpenF1CalendarService> _logger;
+    private readonly ILogger<CalendarService> _logger;
     private static readonly TimeSpan CurrentSeasonCacheExpiration = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan HistoricalCacheExpiration = TimeSpan.FromHours(1);
     private const int FirstF1Season = 1950;
 
-    public OpenF1CalendarService(IOpenF1Client openF1Client, IMemoryCache cache, ILogger<OpenF1CalendarService> logger)
+    public CalendarService(IOpenF1Client openF1Client, IMemoryCache cache, ILogger<CalendarService> logger)
     {
         _openF1Client = openF1Client;
         _cache = cache;

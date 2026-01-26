@@ -590,7 +590,7 @@ Examples:
             return;
         }
 
-        if (!OpenF1CalendarService.IsValidYear(year))
+        if (!CalendarService.IsValidYear(year))
         {
             await _messageSender.SendMessageAsync(
                 message.Chat.Id,

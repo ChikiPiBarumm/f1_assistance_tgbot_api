@@ -14,12 +14,12 @@ builder.Services.AddHttpClient<IOpenF1Client, OpenF1Client>(client =>
     client.BaseAddress = new Uri("https://api.openf1.org");
 });
 
-builder.Services.AddSingleton<IUserStateService, OpenF1UserStateService>();
-builder.Services.AddScoped<ICalendarService, OpenF1CalendarService>();
-builder.Services.AddScoped<IStandingsService, OpenF1StandingsService>();
-builder.Services.AddScoped<IRaceResultsService, OpenF1RaceResultsService>();
-builder.Services.AddScoped<ISessionService, OpenF1SessionService>();
-builder.Services.AddScoped<IRaceDetailsService, OpenF1RaceDetailsService>();
+builder.Services.AddSingleton<IUserStateService, UserStateService>();
+builder.Services.AddScoped<ICalendarService, CalendarService>();
+builder.Services.AddScoped<IStandingsService, StandingsService>();
+builder.Services.AddScoped<IRaceResultsService, RaceResultsService>();
+builder.Services.AddScoped<ISessionService, SessionService>();
+builder.Services.AddScoped<IRaceDetailsService, RaceDetailsService>();
 
 var botToken = builder.Configuration["TelegramBot:BotToken"];
 if (string.IsNullOrWhiteSpace(botToken) || botToken == "YOUR_BOT_TOKEN_HERE")

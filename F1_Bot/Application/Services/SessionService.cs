@@ -6,19 +6,19 @@ using Microsoft.Extensions.Logging;
 
 namespace F1_Bot.Services;
 
-public class OpenF1SessionService : ISessionService
+public class SessionService : ISessionService
 {
     private readonly IOpenF1Client _openF1Client;
     private readonly ICalendarService _calendarService;
     private readonly IMemoryCache _cache;
-    private readonly ILogger<OpenF1SessionService> _logger;
+    private readonly ILogger<SessionService> _logger;
     private static readonly TimeSpan CacheExpiration = TimeSpan.FromMinutes(5);
 
-    public OpenF1SessionService(
+    public SessionService(
         IOpenF1Client openF1Client,
         ICalendarService calendarService,
         IMemoryCache cache,
-        ILogger<OpenF1SessionService> logger)
+        ILogger<SessionService> logger)
     {
         _openF1Client = openF1Client;
         _calendarService = calendarService;

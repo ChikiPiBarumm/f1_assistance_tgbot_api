@@ -5,18 +5,18 @@ using Microsoft.Extensions.Logging;
 
 namespace F1_Bot.Services;
 
-public class OpenF1StandingsService : IStandingsService
+public class StandingsService : IStandingsService
 {
     private readonly IOpenF1Client _openF1Client;
     private readonly ICalendarService _calendarService;
     private readonly ISessionService _sessionService;
-    private readonly ILogger<OpenF1StandingsService> _logger;
+    private readonly ILogger<StandingsService> _logger;
 
-    public OpenF1StandingsService(
+    public StandingsService(
         IOpenF1Client openF1Client,
         ICalendarService calendarService,
         ISessionService sessionService,
-        ILogger<OpenF1StandingsService> logger)
+        ILogger<StandingsService> logger)
     {
         _openF1Client = openF1Client;
         _calendarService = calendarService;

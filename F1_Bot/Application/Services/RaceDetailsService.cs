@@ -6,19 +6,19 @@ using Microsoft.Extensions.Logging;
 
 namespace F1_Bot.Services;
 
-public class OpenF1RaceDetailsService : IRaceDetailsService
+public class RaceDetailsService : IRaceDetailsService
 {
     private readonly IOpenF1Client _openF1Client;
     private readonly ISessionService _sessionService;
     private readonly IMemoryCache _cache;
-    private readonly ILogger<OpenF1RaceDetailsService> _logger;
+    private readonly ILogger<RaceDetailsService> _logger;
     private static readonly TimeSpan CacheExpiration = TimeSpan.FromMinutes(5);
 
-    public OpenF1RaceDetailsService(
+    public RaceDetailsService(
         IOpenF1Client openF1Client,
         ISessionService sessionService,
         IMemoryCache cache,
-        ILogger<OpenF1RaceDetailsService> logger)
+        ILogger<RaceDetailsService> logger)
     {
         _openF1Client = openF1Client;
         _sessionService = sessionService;

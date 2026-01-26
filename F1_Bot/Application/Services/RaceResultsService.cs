@@ -5,18 +5,18 @@ using Microsoft.Extensions.Logging;
 
 namespace F1_Bot.Services;
 
-public class OpenF1RaceResultsService : IRaceResultsService
+public class RaceResultsService : IRaceResultsService
 {
     private readonly IOpenF1Client _openF1Client;
     private readonly ICalendarService _calendarService;
     private readonly ISessionService _sessionService;
-    private readonly ILogger<OpenF1RaceResultsService> _logger;
+    private readonly ILogger<RaceResultsService> _logger;
 
-    public OpenF1RaceResultsService(
+    public RaceResultsService(
         IOpenF1Client openF1Client,
         ICalendarService calendarService,
         ISessionService sessionService,
-        ILogger<OpenF1RaceResultsService> logger)
+        ILogger<RaceResultsService> logger)
     {
         _openF1Client = openF1Client;
         _calendarService = calendarService;

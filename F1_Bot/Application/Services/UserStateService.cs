@@ -3,13 +3,13 @@ using Microsoft.Extensions.Logging;
 
 namespace F1_Bot.Services;
 
-public class OpenF1UserStateService : IUserStateService
+public class UserStateService : IUserStateService
 {
     private readonly Dictionary<long, UserState> _userStates = new();
-    private readonly ILogger<OpenF1UserStateService> _logger;
+    private readonly ILogger<UserStateService> _logger;
     private readonly object _lock = new();
 
-    public OpenF1UserStateService(ILogger<OpenF1UserStateService> logger)
+    public UserStateService(ILogger<UserStateService> logger)
     {
         _logger = logger;
     }
