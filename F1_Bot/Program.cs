@@ -1,58 +1,78 @@
 using F1_Bot.Services;
 using F1_Bot.Infrastructure.OpenF1;
+using F1_Bot.Services.Bot;
+using Telegram.Bot;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// This sets up OpenAPI (the machine-readable API description).
 builder.Services.AddOpenApi();
 
-// Register HttpClient for OpenF1
 builder.Services.AddHttpClient<IOpenF1Client, OpenF1Client>(client =>
 {
     client.BaseAddress = new Uri("https://api.openf1.org");
 });
 
-// Register our F1 services
 builder.Services.AddScoped<ICalendarService, OpenF1CalendarService>();
 builder.Services.AddScoped<IStandingsService, OpenF1StandingsService>();
 builder.Services.AddScoped<IRaceResultsService, OpenF1RaceResultsService>();
 
+var botToken = builder.Configuration["TelegramBot:BotToken"];
+if (string.IsNullOrWhiteSpace(botToken) || botToken == "YOUR_BOT_TOKEN_HERE")
+{
+    throw new InvalidOperationException(
+        "Telegram bot token is not configured. Please set 'TelegramBot:BotToken' in appsettings.json");
+}
+
+builder.Services.AddHttpClient("TelegramBot", client =>
+{
+    client.BaseAddress = new Uri("https://api.telegram.org");
+    client.Timeout = TimeSpan.FromSeconds(30);
+})
+.ConfigurePrimaryHttpMessageHandler(() => new System.Net.Http.SocketsHttpHandler
+{
+    PooledConnectionLifetime = TimeSpan.FromSeconds(1),
+    MaxConnectionsPerServer = 1,
+    ConnectTimeout = TimeSpan.FromSeconds(10),
+    PooledConnectionIdleTimeout = TimeSpan.FromSeconds(1)
+})
+.SetHandlerLifetime(TimeSpan.FromSeconds(1));
+
+builder.Services.AddSingleton<ITelegramBotClient>(sp =>
+{
+    var botToken = builder.Configuration["TelegramBot:BotToken"];
+    var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+    var httpClient = httpClientFactory.CreateClient("TelegramBot");
+    var botOptions = new TelegramBotClientOptions(botToken);
+    return new TelegramBotClient(botOptions, httpClient);
+});
+
+builder.Services.AddScoped<TelegramBotMessageSender>();
+builder.Services.AddScoped<TelegramBotCommandRouter>();
+builder.Services.AddSingleton<TelegramBotPollingService>();
+builder.Services.AddSingleton<ITelegramBotService>(sp => 
+    sp.GetRequiredService<TelegramBotPollingService>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<TelegramBotPollingService>());
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    // Expose the OpenAPI document as JSON at /openapi/v1.json (by default)
     app.MapOpenApi();
-
-    // Enable Swagger UI, which reads the OpenAPI document and shows a UI
     app.UseSwaggerUI(options =>
     {
-        // Tell Swagger UI where the OpenAPI JSON is and give it a name
         options.SwaggerEndpoint("/openapi/v1.json", "F1 Assistance Bot & API v1");
-
-        // URL path where Swagger UI will be available: /swagger
         options.RoutePrefix = "swagger";
     });
 }
 
 app.UseHttpsRedirection();
 
-// // Health check endpoint
-// app.MapGet("/api/health", () =>
-// {
-//     return new { status = "ok" };
-// });
-
-// Get all races
 app.MapGet("/api/races", async (ICalendarService calendarService) =>
 {
     var races = await calendarService.GetRacesAsync();
     return Results.Ok(races);
 });
 
-// Get next race
 app.MapGet("/api/races/next", async (ICalendarService calendarService) =>
 {
     var nextRace = await calendarService.GetNextRaceAsync();
@@ -65,14 +85,12 @@ app.MapGet("/api/races/next", async (ICalendarService calendarService) =>
     return Results.Ok(nextRace);
 });
 
-// Get driver standings
 app.MapGet("/api/standings/drivers", async (IStandingsService standingsService) =>
 {
     var standings = await standingsService.GetDriverStandingsAsync();
     return Results.Ok(standings);
 });
 
-// Get team standings
 app.MapGet("/api/standings/teams", async (IStandingsService standingsService) =>
 {
     var standings = await standingsService.GetTeamStandingsAsync();

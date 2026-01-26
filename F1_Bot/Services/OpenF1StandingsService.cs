@@ -37,6 +37,7 @@ public class OpenF1StandingsService : IStandingsService
 
             var standings = championship
                 .OrderBy(d => d.Position_Current)
+                .Take(20)
                 .Select(d =>
                 {
                     if (driverLookup.TryGetValue(d.Driver_Number, out var driverInfo))

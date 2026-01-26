@@ -28,3 +28,8 @@ packages/
 # Other
 *.tmp
 *.temp
+
+# User-specific configuration files
+appsettings.Development.json
+appsettings.*.json
+!appsettings.json
