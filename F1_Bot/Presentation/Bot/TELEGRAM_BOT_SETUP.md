@@ -31,9 +31,12 @@
 
 - `/start` - Welcome message
 - `/next_race` or `/nextrace` - Get the next upcoming race
+- `/race [round]` or `/race_info [round]` - Get detailed race info with sessions
+- `/schedule [round]` or `/sessions [round]` - Get session schedule for a race
 - `/standings`, `/driver_standings`, or `/driverstandings` - Driver championship standings
 - `/team_standings` or `/teamstandings` - Constructor championship standings
-- `/last_race`, `/lastrace`, or `/results` - Results from the last race
+- `/results [round]` - Race results (last race if no round specified)
+- `/last_race` or `/lastrace` - Results from the last race
 - `/help` - Show help message
 
 ## Architecture Notes
@@ -43,7 +46,7 @@ The bot is designed with a clean architecture:
 - **Business Logic**: `TelegramBotCommandRouter` handles all commands (shared by polling and webhooks)
 - **Message Sending**: `TelegramBotMessageSender` provides retry logic and timeout handling for all messages
 - **Connection Method**: `TelegramBotPollingService` implements long polling (can be swapped for webhooks later)
-- **Services**: Bot uses your existing F1 services (`ICalendarService`, `IStandingsService`, `IRaceResultsService`)
+- **Services**: Bot uses F1 services from the Application layer (`ICalendarService`, `IStandingsService`, `IRaceResultsService`, `IRaceDetailsService`, `ISessionService`)
 
 The bot uses `IHttpClientFactory` with optimized connection pooling to prevent timeout issues.
 

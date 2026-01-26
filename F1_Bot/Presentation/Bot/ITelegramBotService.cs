@@ -1,4 +1,4 @@
-namespace F1_Bot.Services.Bot;
+namespace F1_Bot.Presentation.Bot;
 
 public interface ITelegramBotService
 {

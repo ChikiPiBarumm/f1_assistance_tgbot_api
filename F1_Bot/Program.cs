@@ -1,10 +1,12 @@
 using F1_Bot.Services;
 using F1_Bot.Infrastructure.OpenF1;
-using F1_Bot.Services.Bot;
+using F1_Bot.Presentation.Bot;
 using Telegram.Bot;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddControllers();
+builder.Services.AddMemoryCache();
 builder.Services.AddOpenApi();
 
 builder.Services.AddHttpClient<IOpenF1Client, OpenF1Client>(client =>
@@ -12,9 +14,12 @@ builder.Services.AddHttpClient<IOpenF1Client, OpenF1Client>(client =>
     client.BaseAddress = new Uri("https://api.openf1.org");
 });
 
+builder.Services.AddSingleton<IUserStateService, OpenF1UserStateService>();
 builder.Services.AddScoped<ICalendarService, OpenF1CalendarService>();
 builder.Services.AddScoped<IStandingsService, OpenF1StandingsService>();
 builder.Services.AddScoped<IRaceResultsService, OpenF1RaceResultsService>();
+builder.Services.AddScoped<ISessionService, OpenF1SessionService>();
+builder.Services.AddScoped<IRaceDetailsService, OpenF1RaceDetailsService>();
 
 var botToken = builder.Configuration["TelegramBot:BotToken"];
 if (string.IsNullOrWhiteSpace(botToken) || botToken == "YOUR_BOT_TOKEN_HERE")
@@ -26,7 +31,7 @@ if (string.IsNullOrWhiteSpace(botToken) || botToken == "YOUR_BOT_TOKEN_HERE")
 builder.Services.AddHttpClient("TelegramBot", client =>
 {
     client.BaseAddress = new Uri("https://api.telegram.org");
-    client.Timeout = TimeSpan.FromSeconds(30);
+    client.Timeout = TimeSpan.FromSeconds(90);
 })
 .ConfigurePrimaryHttpMessageHandler(() => new System.Net.Http.SocketsHttpHandler
 {
@@ -40,6 +45,10 @@ builder.Services.AddHttpClient("TelegramBot", client =>
 builder.Services.AddSingleton<ITelegramBotClient>(sp =>
 {
     var botToken = builder.Configuration["TelegramBot:BotToken"];
+    if (string.IsNullOrWhiteSpace(botToken))
+    {
+        throw new InvalidOperationException("Telegram bot token is not configured.");
+    }
     var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
     var httpClient = httpClientFactory.CreateClient("TelegramBot");
     var botOptions = new TelegramBotClientOptions(botToken);
@@ -67,46 +76,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.MapGet("/api/races", async (ICalendarService calendarService) =>
-{
-    var races = await calendarService.GetRacesAsync();
-    return Results.Ok(races);
-});
-
-app.MapGet("/api/races/next", async (ICalendarService calendarService) =>
-{
-    var nextRace = await calendarService.GetNextRaceAsync();
-
-    if (nextRace is null)
-    {
-        return Results.NotFound(new { message = "No upcoming race found" });
-    }
-
-    return Results.Ok(nextRace);
-});
-
-app.MapGet("/api/standings/drivers", async (IStandingsService standingsService) =>
-{
-    var standings = await standingsService.GetDriverStandingsAsync();
-    return Results.Ok(standings);
-});
-
-app.MapGet("/api/standings/teams", async (IStandingsService standingsService) =>
-{
-    var standings = await standingsService.GetTeamStandingsAsync();
-    return Results.Ok(standings);
-});
-
-app.MapGet("/api/races/last/results", async (IRaceResultsService raceResultsService) =>
-{
-    var results = await raceResultsService.GetLastRaceResultsAsync();
-
-    if (results.Count == 0)
-    {
-        return Results.NotFound(new { message = "No race results found for the latest race" });
-    }
-
-    return Results.Ok(results);
-});
+app.MapControllers();
 
 app.Run();

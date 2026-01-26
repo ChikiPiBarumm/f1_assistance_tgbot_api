@@ -1,4 +1,5 @@
-﻿using F1_Bot.Domain.Models;
+using System.Linq;
+using F1_Bot.Domain.Models;
 using F1_Bot.Infrastructure.OpenF1;
 using Microsoft.Extensions.Logging;
 
@@ -7,29 +8,64 @@ namespace F1_Bot.Services;
 public class OpenF1StandingsService : IStandingsService
 {
     private readonly IOpenF1Client _openF1Client;
+    private readonly ICalendarService _calendarService;
+    private readonly ISessionService _sessionService;
     private readonly ILogger<OpenF1StandingsService> _logger;
 
-    public OpenF1StandingsService(IOpenF1Client openF1Client, ILogger<OpenF1StandingsService> logger)
+    public OpenF1StandingsService(
+        IOpenF1Client openF1Client,
+        ICalendarService calendarService,
+        ISessionService sessionService,
+        ILogger<OpenF1StandingsService> logger)
     {
         _openF1Client = openF1Client;
+        _calendarService = calendarService;
+        _sessionService = sessionService;
         _logger = logger;
     }
 
-    public async Task<List<DriverStanding>> GetDriverStandingsAsync()
+    public async Task<List<DriverStanding>> GetDriverStandingsAsync(int? year = null, int? round = null)
     {
         try
         {
-            const string sessionKey = "latest";
-            _logger.LogInformation("Getting driver standings");
+            string? sessionKey = null;
+
+            if (year.HasValue)
+            {
+                _logger.LogInformation("Getting driver standings for year {Year}, round {Round}", year, round);
+                sessionKey = await GetSessionKeyForYearRoundAsync(year.Value, round);
+            }
+            else
+            {
+                sessionKey = "latest";
+                _logger.LogInformation("Getting driver standings (latest)");
+            }
+
+            if (string.IsNullOrEmpty(sessionKey))
+            {
+                _logger.LogWarning("No session key found for year {Year}, round {Round}", year, round);
+                return new List<DriverStanding>();
+            }
 
             var championship = await _openF1Client.GetDriverChampionshipAsync(sessionKey);
-            var drivers = await _openF1Client.GetDriversAsync(sessionKey);
 
             if (championship.Count == 0)
             {
                 _logger.LogWarning("No championship data found for session {SessionKey}", sessionKey);
                 return new List<DriverStanding>();
             }
+
+            int? meetingKey = null;
+            if (year.HasValue)
+            {
+                var races = await _calendarService.GetRacesAsync(year);
+                Race? targetRace = round.HasValue
+                    ? races.FirstOrDefault(r => r.RoundNumber == round.Value)
+                    : races.OrderByDescending(r => r.Date).FirstOrDefault();
+                meetingKey = targetRace?.Id;
+            }
+
+            var drivers = await GetDriversWithFallbackAsync(sessionKey, meetingKey);
 
             var driverLookup = drivers
                 .GroupBy(d => d.Driver_Number)
@@ -74,12 +110,28 @@ public class OpenF1StandingsService : IStandingsService
         }
     }
 
-    public async Task<List<TeamStanding>> GetTeamStandingsAsync()
+    public async Task<List<TeamStanding>> GetTeamStandingsAsync(int? year = null, int? round = null)
     {
         try
         {
-            const string sessionKey = "latest";
-            _logger.LogInformation("Getting team standings");
+            string? sessionKey = null;
+
+            if (year.HasValue)
+            {
+                _logger.LogInformation("Getting team standings for year {Year}, round {Round}", year, round);
+                sessionKey = await GetSessionKeyForYearRoundAsync(year.Value, round);
+            }
+            else
+            {
+                sessionKey = "latest";
+                _logger.LogInformation("Getting team standings (latest)");
+            }
+
+            if (string.IsNullOrEmpty(sessionKey))
+            {
+                _logger.LogWarning("No session key found for year {Year}, round {Round}", year, round);
+                return new List<TeamStanding>();
+            }
 
             var openF1Teams = await _openF1Client.GetTeamChampionshipAsync(sessionKey);
 
@@ -107,5 +159,105 @@ public class OpenF1StandingsService : IStandingsService
             _logger.LogError(ex, "Error while getting team standings");
             return new List<TeamStanding>();
         }
+    }
+
+    private async Task<string?> GetSessionKeyForYearRoundAsync(int year, int? round)
+    {
+        try
+        {
+            var races = await _calendarService.GetRacesAsync(year);
+
+            if (races.Count == 0)
+            {
+                _logger.LogWarning("No races found for year {Year}", year);
+                return null;
+            }
+
+            Race? targetRace;
+
+            if (round.HasValue)
+            {
+                targetRace = races.FirstOrDefault(r => r.RoundNumber == round.Value);
+                if (targetRace == null)
+                {
+                    _logger.LogWarning("Round {Round} not found for year {Year}", round, year);
+                    return null;
+                }
+            }
+            else
+            {
+                targetRace = races.OrderByDescending(r => r.Date).FirstOrDefault();
+                if (targetRace == null)
+                {
+                    _logger.LogWarning("No races found for year {Year}", year);
+                    return null;
+                }
+            }
+
+            return await _sessionService.GetRaceSessionKeyAsync(targetRace.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting session key for year {Year}, round {Round}", year, round);
+            return null;
+        }
+    }
+
+    private async Task<List<OpenF1DriverDto>> GetDriversWithFallbackAsync(string sessionKey, int? meetingKey)
+    {
+        var drivers = await _openF1Client.GetDriversAsync(sessionKey);
+
+        if (drivers.Count > 0)
+        {
+            _logger.LogDebug("Found {Count} drivers for session {SessionKey}", drivers.Count, sessionKey);
+            return drivers;
+        }
+
+        if (!meetingKey.HasValue)
+        {
+            _logger.LogWarning("No drivers found for session {SessionKey} and no meeting key provided for fallback", sessionKey);
+            return drivers;
+        }
+
+        _logger.LogDebug("No drivers found for race session {SessionKey}, trying fallback sessions for meeting {MeetingKey}", sessionKey, meetingKey);
+
+        var fallbackSessionTypes = new[] { "Qualifying", "Practice 1", "Practice 2", "Practice 3", "FP1", "FP2", "FP3" };
+
+        foreach (var sessionType in fallbackSessionTypes)
+        {
+            var sessions = await _openF1Client.GetSessionsAsync(sessionType, meetingKey.Value.ToString());
+            if (sessions.Count > 0)
+            {
+                var fallbackSession = sessions.OrderByDescending(s => s.Date_Start ?? DateTime.MinValue).FirstOrDefault();
+                if (fallbackSession != null)
+                {
+                    var fallbackDrivers = await _openF1Client.GetDriversAsync(fallbackSession.Session_Key.ToString());
+                    if (fallbackDrivers.Count > 0)
+                    {
+                        _logger.LogInformation("Found {Count} drivers from fallback session {SessionType} (session_key: {FallbackSessionKey})", 
+                            fallbackDrivers.Count, sessionType, fallbackSession.Session_Key);
+                        return fallbackDrivers;
+                    }
+                }
+            }
+        }
+
+        var allSessions = await _openF1Client.GetSessionsAsync("", meetingKey.Value.ToString());
+        foreach (var session in allSessions.OrderByDescending(s => s.Date_Start ?? DateTime.MinValue))
+        {
+            if (session.Session_Type != "Race")
+            {
+                var fallbackDrivers = await _openF1Client.GetDriversAsync(session.Session_Key.ToString());
+                if (fallbackDrivers.Count > 0)
+                {
+                    _logger.LogInformation("Found {Count} drivers from fallback session {SessionType} (session_key: {FallbackSessionKey})", 
+                        fallbackDrivers.Count, session.Session_Type, session.Session_Key);
+                    return fallbackDrivers;
+                }
+            }
+        }
+
+        _logger.LogWarning("No drivers found even after trying fallback sessions for meeting {MeetingKey}", meetingKey);
+        return drivers;
     }
 }

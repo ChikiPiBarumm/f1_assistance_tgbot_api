@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
@@ -5,7 +6,7 @@ using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
-namespace F1_Bot.Services.Bot;
+namespace F1_Bot.Presentation.Bot;
 
 public class TelegramBotPollingService : BackgroundService, ITelegramBotService
 {
@@ -71,7 +72,17 @@ public class TelegramBotPollingService : BackgroundService, ITelegramBotService
 
     private Task HandlePollingErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
     {
-        _logger.LogError(exception, "Error while polling for updates");
+        if (exception is Telegram.Bot.Exceptions.RequestException requestEx &&
+            (requestEx.InnerException is TaskCanceledException || 
+             requestEx.InnerException is TimeoutException ||
+             requestEx.Message.Contains("timed out", StringComparison.OrdinalIgnoreCase)))
+        {
+            _logger.LogDebug("Polling timeout (this is normal for long polling): {Message}", requestEx.Message);
+        }
+        else
+        {
+            _logger.LogError(exception, "Error while polling for updates");
+        }
         return Task.CompletedTask;
     }
 

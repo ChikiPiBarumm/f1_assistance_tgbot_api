@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
-namespace F1_Bot.Services.Bot;
+namespace F1_Bot.Presentation.Bot;
 
 public class TelegramBotMessageSender
 {
@@ -39,7 +39,7 @@ public class TelegramBotMessageSender
                 await _botClient.SendMessage(chatId, text, cancellationToken: linkedCts.Token);
                 return;
             }
-            catch (OperationCanceledException ex) when (attempt < maxRetries)
+            catch (OperationCanceledException) when (attempt < maxRetries)
             {
                 var elapsed = (DateTimeOffset.UtcNow - startTime).TotalMilliseconds;
                 _logger.LogWarning("SendMessage timeout on attempt {Attempt}/{MaxRetries} after {Elapsed}ms, retrying...", attempt, maxRetries, elapsed);
