@@ -8,16 +8,16 @@ using Telegram.Bot.Types.Enums;
 
 namespace F1_Bot.Presentation.Bot;
 
-public class TelegramBotPollingService : BackgroundService, ITelegramBotService
+public class PollingService : BackgroundService, ITelegramBotService
 {
     private readonly ITelegramBotClient _botClient;
     private readonly IServiceScopeFactory _serviceScopeFactory;
-    private readonly ILogger<TelegramBotPollingService> _logger;
+    private readonly ILogger<PollingService> _logger;
 
-    public TelegramBotPollingService(
+    public PollingService(
         ITelegramBotClient botClient,
         IServiceScopeFactory serviceScopeFactory,
-        ILogger<TelegramBotPollingService> logger)
+        ILogger<PollingService> logger)
     {
         _botClient = botClient;
         _serviceScopeFactory = serviceScopeFactory;
@@ -86,14 +86,15 @@ public class TelegramBotPollingService : BackgroundService, ITelegramBotService
         return Task.CompletedTask;
     }
 
-    public Task StartAsync(CancellationToken cancellationToken = default)
+    public override Task StartAsync(CancellationToken cancellationToken)
     {
-        return Task.CompletedTask;
+        _logger.LogInformation("Starting Telegram bot background service...");
+        return base.StartAsync(cancellationToken);
     }
 
-    public Task StopAsync(CancellationToken cancellationToken = default)
+    public override Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Stopping Telegram bot...");
-        return Task.CompletedTask;
+        return base.StopAsync(cancellationToken);
     }
 }

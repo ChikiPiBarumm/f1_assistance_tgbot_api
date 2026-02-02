@@ -7,4 +7,5 @@ public interface IUserStateService
     Task SetHistoryModeAsync(long userId, int year);
     Task SetCurrentModeAsync(long userId);
     Task<UserState> GetUserStateAsync(long userId);
+    Task<int> GetEffectiveYearAsync(long userId);
 }

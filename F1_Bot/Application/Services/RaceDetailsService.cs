@@ -9,19 +9,16 @@ namespace F1_Bot.Services;
 public class RaceDetailsService : IRaceDetailsService
 {
     private readonly IOpenF1Client _openF1Client;
-    private readonly ISessionService _sessionService;
     private readonly IMemoryCache _cache;
     private readonly ILogger<RaceDetailsService> _logger;
     private static readonly TimeSpan CacheExpiration = TimeSpan.FromMinutes(5);
 
     public RaceDetailsService(
         IOpenF1Client openF1Client,
-        ISessionService sessionService,
         IMemoryCache cache,
         ILogger<RaceDetailsService> logger)
     {
         _openF1Client = openF1Client;
-        _sessionService = sessionService;
         _cache = cache;
         _logger = logger;
     }
@@ -50,8 +47,14 @@ public class RaceDetailsService : IRaceDetailsService
                 return null;
             }
 
-            var meeting = orderedMeetings[round - 1];
-            var schedule = await _sessionService.GetRaceScheduleByMeetingKeyAsync(meeting.Meeting_Key);
+            var meetingKey = orderedMeetings[round - 1].Meeting_Key;
+            var meeting = await _openF1Client.GetMeetingByKeyAsync(meetingKey);
+
+            if (meeting == null)
+            {
+                _logger.LogWarning("Meeting not found for key {MeetingKey}", meetingKey);
+                return null;
+            }
 
             var raceDetails = new RaceDetails
             {
@@ -63,7 +66,7 @@ public class RaceDetailsService : IRaceDetailsService
                 RoundNumber = round,
                 Date = meeting.Date_Start,
                 Status = meeting.Date_End < DateTime.UtcNow ? "Completed" : "Upcoming",
-                Sessions = schedule?.Sessions ?? new List<Session>()
+                Sessions = new List<Session>()
             };
 
             var cacheOptions = new MemoryCacheEntryOptions
@@ -77,6 +80,57 @@ public class RaceDetailsService : IRaceDetailsService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error while getting race details for round {Round}", round);
+            return null;
+        }
+    }
+
+    public async Task<RaceDetails?> GetRaceByMeetingKeyAsync(int meetingKey, int round, int? year = null)
+    {
+        try
+        {
+            year ??= DateTime.UtcNow.Year;
+            var cacheKey = $"race_details_meeting_{meetingKey}";
+
+            if (_cache.TryGetValue<RaceDetails>(cacheKey, out var cachedRace))
+            {
+                _logger.LogDebug("Returning cached race details for meeting {MeetingKey}", meetingKey);
+                return cachedRace;
+            }
+
+            _logger.LogInformation("Getting race details for meeting {MeetingKey}", meetingKey);
+
+            var meeting = await _openF1Client.GetMeetingByKeyAsync(meetingKey);
+
+            if (meeting == null)
+            {
+                _logger.LogWarning("Meeting not found for key {MeetingKey}", meetingKey);
+                return null;
+            }
+
+            var raceDetails = new RaceDetails
+            {
+                Id = meeting.Meeting_Key,
+                Name = meeting.Meeting_Name,
+                CircuitName = meeting.Location,
+                City = meeting.Location,
+                Country = meeting.Country_Name,
+                RoundNumber = round,
+                Date = meeting.Date_Start,
+                Status = meeting.Date_End < DateTime.UtcNow ? "Completed" : "Upcoming",
+                Sessions = new List<Session>()
+            };
+
+            var cacheOptions = new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = CacheExpiration
+            };
+            _cache.Set(cacheKey, raceDetails, cacheOptions);
+
+            return raceDetails;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while getting race details for meeting {MeetingKey}", meetingKey);
             return null;
         }
     }
@@ -104,8 +158,6 @@ public class RaceDetailsService : IRaceDetailsService
             for (int i = 0; i < orderedMeetings.Count; i++)
             {
                 var meeting = orderedMeetings[i];
-                var schedule = await _sessionService.GetRaceScheduleByMeetingKeyAsync(meeting.Meeting_Key);
-
                 racesDetails.Add(new RaceDetails
                 {
                     Id = meeting.Meeting_Key,
@@ -116,7 +168,7 @@ public class RaceDetailsService : IRaceDetailsService
                     RoundNumber = i + 1,
                     Date = meeting.Date_Start,
                     Status = meeting.Date_End < DateTime.UtcNow ? "Completed" : "Upcoming",
-                    Sessions = schedule?.Sessions ?? new List<Session>()
+                    Sessions = new List<Session>()
                 });
             }
 

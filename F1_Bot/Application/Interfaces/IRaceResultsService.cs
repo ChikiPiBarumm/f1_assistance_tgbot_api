@@ -5,5 +5,7 @@ namespace F1_Bot.Services;
 public interface IRaceResultsService
 {
     Task<List<RaceResult>> GetLastRaceResultsAsync(int? year = null);
+    Task<(List<RaceResult> Results, int MeetingKey)> GetLastRaceResultsWithMeetingKeyAsync();
     Task<List<RaceResult>> GetRaceResultsByRoundAsync(int round, int? year = null);
+    Task<List<RaceResult>> GetRaceResultsByMeetingKeyAsync(int meetingKey);
 }

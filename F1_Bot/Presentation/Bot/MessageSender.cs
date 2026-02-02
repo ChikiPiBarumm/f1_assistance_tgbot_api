@@ -1,17 +1,18 @@
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace F1_Bot.Presentation.Bot;
 
-public class TelegramBotMessageSender
+public class MessageSender
 {
     private readonly ITelegramBotClient _botClient;
-    private readonly ILogger<TelegramBotMessageSender> _logger;
+    private readonly ILogger<MessageSender> _logger;
 
-    public TelegramBotMessageSender(
+    public MessageSender(
         ITelegramBotClient botClient,
-        ILogger<TelegramBotMessageSender> logger)
+        ILogger<MessageSender> logger)
     {
         _botClient = botClient;
         _logger = logger;
@@ -21,6 +22,24 @@ public class TelegramBotMessageSender
         ChatId chatId,
         string text,
         CancellationToken cancellationToken = default)
+    {
+        await SendMessageInternalAsync(chatId, text, null, cancellationToken);
+    }
+
+    public async Task SendMessageAsync(
+        ChatId chatId,
+        string text,
+        ReplyMarkup? replyMarkup,
+        CancellationToken cancellationToken = default)
+    {
+        await SendMessageInternalAsync(chatId, text, replyMarkup, cancellationToken);
+    }
+
+    private async Task SendMessageInternalAsync(
+        ChatId chatId,
+        string text,
+        ReplyMarkup? replyMarkup,
+        CancellationToken cancellationToken)
     {
         const int maxRetries = 3;
         const int timeoutSeconds = 15;
@@ -36,7 +55,7 @@ public class TelegramBotMessageSender
                     ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token)
                     : timeoutCts;
 
-                await _botClient.SendMessage(chatId, text, cancellationToken: linkedCts.Token);
+                await _botClient.SendMessage(chatId, text, replyMarkup: replyMarkup, cancellationToken: linkedCts.Token);
                 return;
             }
             catch (OperationCanceledException) when (attempt < maxRetries)

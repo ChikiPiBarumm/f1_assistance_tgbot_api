@@ -78,6 +78,39 @@ public class RaceResultsService : IRaceResultsService
         }
     }
 
+    public async Task<(List<RaceResult> Results, int MeetingKey)> GetLastRaceResultsWithMeetingKeyAsync()
+    {
+        try
+        {
+            const string sessionType = "Race";
+            const string meetingKey = "latest";
+            _logger.LogInformation("Getting last race results (meeting_key=latest)");
+
+            var sessions = await _openF1Client.GetSessionsAsync(sessionType, meetingKey);
+
+            var latestRaceSession = sessions
+                .OrderByDescending(s => s.Date_Start ?? DateTime.MinValue)
+                .FirstOrDefault();
+
+            if (latestRaceSession == null)
+            {
+                _logger.LogWarning("No race session found for type={SessionType}, meeting={MeetingKey}", sessionType, meetingKey);
+                return (new List<RaceResult>(), 0);
+            }
+
+            _logger.LogDebug("Found race session {SessionKey} for meeting {MeetingKey}", latestRaceSession.Session_Key, latestRaceSession.Meeting_Key);
+
+            var sessionKey = latestRaceSession.Session_Key.ToString();
+            var results = await GetResultsBySessionKeyAsyncNoDrivers(sessionKey);
+            return (results, latestRaceSession.Meeting_Key);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while getting last race results with meeting key");
+            return (new List<RaceResult>(), 0);
+        }
+    }
+
     public async Task<List<RaceResult>> GetRaceResultsByRoundAsync(int round, int? year = null)
     {
         try
@@ -115,6 +148,62 @@ public class RaceResultsService : IRaceResultsService
         }
     }
 
+    public async Task<List<RaceResult>> GetRaceResultsByMeetingKeyAsync(int meetingKey)
+    {
+        try
+        {
+            _logger.LogInformation("Getting race results for meeting {MeetingKey}", meetingKey);
+
+            var sessions = await _openF1Client.GetSessionsAsync("Race", meetingKey.ToString());
+
+            var raceSession = sessions
+                .OrderBy(s => s.Date_Start ?? DateTime.MinValue)
+                .FirstOrDefault();
+
+            if (raceSession == null)
+            {
+                _logger.LogWarning("No race session found for meeting {MeetingKey}", meetingKey);
+                return new List<RaceResult>();
+            }
+
+            var sessionKey = raceSession.Session_Key.ToString();
+            return await GetResultsBySessionKeyAsyncNoDrivers(sessionKey);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while getting race results for meeting {MeetingKey}", meetingKey);
+            return new List<RaceResult>();
+        }
+    }
+
+    private async Task<List<RaceResult>> GetResultsBySessionKeyAsyncNoDrivers(string sessionKey)
+    {
+        var results = await _openF1Client.GetSessionResultsAsync(sessionKey);
+
+        if (results.Count == 0)
+        {
+            _logger.LogWarning("No results found for session {SessionKey}", sessionKey);
+            return new List<RaceResult>();
+        }
+
+        var mapped = results
+            .OrderBy(r => r.Position ?? int.MaxValue)
+            .Select(r => new RaceResult
+            {
+                RaceId = r.Meeting_Key,
+                Position = r.Position ?? 0,
+                DriverName = $"Driver #{r.Driver_Number}",
+                DriverNumber = r.Driver_Number,
+                TeamName = "-",
+                Points = (int)r.Points,
+                Status = string.IsNullOrWhiteSpace(r.Status) ? "Finished" : r.Status
+            })
+            .ToList();
+
+        _logger.LogInformation("Successfully retrieved {Count} race results by meeting key", mapped.Count);
+        return mapped;
+    }
+
     private async Task<List<RaceResult>> GetResultsBySessionKeyAsync(string sessionKey)
     {
         var results = await _openF1Client.GetSessionResultsAsync(sessionKey);
@@ -131,15 +220,16 @@ public class RaceResultsService : IRaceResultsService
             .ToDictionary(g => g.Key, g => g.First());
 
         var mapped = results
-            .OrderBy(r => r.Position)
+            .OrderBy(r => r.Position ?? int.MaxValue)
             .Select(r =>
             {
+                var position = r.Position ?? 0;
                 if (driverLookup.TryGetValue(r.Driver_Number, out var driverInfo))
                 {
                     return new RaceResult
                     {
                         RaceId = r.Meeting_Key,
-                        Position = r.Position,
+                        Position = position,
                         DriverName = driverInfo.Full_Name,
                         DriverNumber = r.Driver_Number,
                         TeamName = driverInfo.Team_Name,
@@ -152,7 +242,7 @@ public class RaceResultsService : IRaceResultsService
                 return new RaceResult
                 {
                     RaceId = r.Meeting_Key,
-                    Position = r.Position,
+                    Position = position,
                     DriverName = $"Driver #{r.Driver_Number}",
                     DriverNumber = r.Driver_Number,
                     TeamName = "Unknown Team",

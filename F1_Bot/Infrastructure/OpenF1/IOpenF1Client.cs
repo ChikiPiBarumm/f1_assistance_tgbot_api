@@ -1,8 +1,10 @@
-﻿namespace F1_Bot.Infrastructure.OpenF1;
+namespace F1_Bot.Infrastructure.OpenF1;
 
 public interface IOpenF1Client
 {
     Task<List<OpenF1MeetingDto>> GetMeetingsAsync(int year, CancellationToken cancellationToken = default);
+
+    Task<OpenF1MeetingDto?> GetMeetingByKeyAsync(int meetingKey, CancellationToken cancellationToken = default);
 
     Task<List<OpenF1ChampionshipDriverDto>> GetDriverChampionshipAsync(
         string sessionKey,

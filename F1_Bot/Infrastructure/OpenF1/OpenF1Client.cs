@@ -1,4 +1,5 @@
-﻿using System.Net.Http;
+using System.Linq;
+using System.Net.Http;
 using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
 
@@ -20,7 +21,7 @@ public class OpenF1Client : IOpenF1Client
         try
         {
             var url = $"/v1/meetings?year={year}";
-            _logger.LogInformation("Fetching meetings for year {Year} from OpenF1", year);
+            _logger.LogInformation("[OpenF1] GET {Endpoint}", url);
             
             var result = await _httpClient.GetFromJsonAsync<List<OpenF1MeetingDto>>(url, cancellationToken);
             
@@ -44,6 +45,33 @@ public class OpenF1Client : IOpenF1Client
         }
     }
 
+    public async Task<OpenF1MeetingDto?> GetMeetingByKeyAsync(int meetingKey, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var url = $"/v1/meetings?meeting_key={meetingKey}";
+            _logger.LogInformation("[OpenF1] GET {Endpoint}", url);
+
+            var result = await _httpClient.GetFromJsonAsync<List<OpenF1MeetingDto>>(url, cancellationToken);
+            return result?.FirstOrDefault();
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error while fetching meeting {MeetingKey}: {Message}", meetingKey, ex.Message);
+            return null;
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Request timeout while fetching meeting {MeetingKey}", meetingKey);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error while fetching meeting {MeetingKey}", meetingKey);
+            return null;
+        }
+    }
+
     public async Task<List<OpenF1ChampionshipDriverDto>> GetDriverChampionshipAsync(
         string sessionKey,
         CancellationToken cancellationToken = default)
@@ -51,7 +79,7 @@ public class OpenF1Client : IOpenF1Client
         try
         {
             var url = $"/v1/championship_drivers?session_key={sessionKey}";
-            _logger.LogDebug("Fetching driver championship for session {SessionKey}", sessionKey);
+            _logger.LogInformation("[OpenF1] GET {Endpoint}", url);
             
             var result = await _httpClient.GetFromJsonAsync<List<OpenF1ChampionshipDriverDto>>(url, cancellationToken);
             return result ?? new List<OpenF1ChampionshipDriverDto>();
@@ -75,7 +103,7 @@ public class OpenF1Client : IOpenF1Client
         try
         {
             var url = $"/v1/championship_teams?session_key={sessionKey}";
-            _logger.LogDebug("Fetching team championship for session {SessionKey}", sessionKey);
+            _logger.LogInformation("[OpenF1] GET {Endpoint}", url);
             
             var result = await _httpClient.GetFromJsonAsync<List<OpenF1ChampionshipTeamDto>>(url, cancellationToken);
             return result ?? new List<OpenF1ChampionshipTeamDto>();
@@ -99,7 +127,7 @@ public class OpenF1Client : IOpenF1Client
         try
         {
             var url = $"/v1/drivers?session_key={sessionKey}";
-            _logger.LogDebug("Fetching drivers for session {SessionKey}", sessionKey);
+            _logger.LogInformation("[OpenF1] GET {Endpoint}", url);
             
             var result = await _httpClient.GetFromJsonAsync<List<OpenF1DriverDto>>(url, cancellationToken);
             return result ?? new List<OpenF1DriverDto>();
@@ -124,7 +152,7 @@ public class OpenF1Client : IOpenF1Client
         try
         {
             var url = $"/v1/sessions?session_type={sessionType}&meeting_key={meetingKey}";
-            _logger.LogDebug("Fetching sessions: type={SessionType}, meeting={MeetingKey}", sessionType, meetingKey);
+            _logger.LogInformation("[OpenF1] GET {Endpoint}", url);
             
             var result = await _httpClient.GetFromJsonAsync<List<OpenF1SessionDto>>(url, cancellationToken);
             return result ?? new List<OpenF1SessionDto>();
@@ -148,7 +176,7 @@ public class OpenF1Client : IOpenF1Client
         try
         {
             var url = $"/v1/session_result?session_key={sessionKey}";
-            _logger.LogDebug("Fetching session results for session {SessionKey}", sessionKey);
+            _logger.LogInformation("[OpenF1] GET {Endpoint}", url);
             
             var result = await _httpClient.GetFromJsonAsync<List<OpenF1SessionResultDto>>(url, cancellationToken);
             return result ?? new List<OpenF1SessionResultDto>();

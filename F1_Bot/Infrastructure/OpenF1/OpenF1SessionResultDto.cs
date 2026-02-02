@@ -1,4 +1,4 @@
-﻿namespace F1_Bot.Infrastructure.OpenF1;
+namespace F1_Bot.Infrastructure.OpenF1;
 
 // Represents one row from a race session result endpoint
 public class OpenF1SessionResultDto
@@ -11,8 +11,8 @@ public class OpenF1SessionResultDto
     // Example: "Red Bull Racing"
     public string Team_Name { get; set; } = string.Empty;
 
-    // Final classification position (1 = winner)
-    public int Position { get; set; }
+    // Final classification position (1 = winner); can be null for DNF/DSQ etc.
+    public int? Position { get; set; }
 
     // Championship points scored in this race
     public double Points { get; set; }

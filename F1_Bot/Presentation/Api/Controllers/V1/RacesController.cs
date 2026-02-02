@@ -8,17 +8,10 @@ namespace F1_Bot.Presentation.Api.Controllers.V1;
 public class RacesController : ControllerBase
 {
     private readonly ICalendarService _calendarService;
-    private readonly IStandingsService _standingsService;
-    private readonly IRaceResultsService _raceResultsService;
 
-    public RacesController(
-        ICalendarService calendarService,
-        IStandingsService standingsService,
-        IRaceResultsService raceResultsService)
+    public RacesController(ICalendarService calendarService)
     {
         _calendarService = calendarService;
-        _standingsService = standingsService;
-        _raceResultsService = raceResultsService;
     }
 
     [HttpGet]
@@ -41,16 +34,4 @@ public class RacesController : ControllerBase
         return Ok(nextRace);
     }
 
-    [HttpGet("last/results")]
-    public async Task<ActionResult> GetLastRaceResults()
-    {
-        var results = await _raceResultsService.GetLastRaceResultsAsync();
-
-        if (results.Count == 0)
-        {
-            return NotFound(new { message = "No race results found for the latest race" });
-        }
-
-        return Ok(results);
-    }
 }

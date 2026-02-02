@@ -67,22 +67,32 @@ public class RacesController : ControllerBase
         return Ok(schedule);
     }
 
-    [HttpGet("{round}/results")]
-    public async Task<ActionResult> GetRaceResults(int round)
+    [HttpGet("{roundOrLatest}/results")]
+    public async Task<ActionResult> GetRaceResults(string roundOrLatest)
     {
-        if (round < 1)
+        if (string.Equals(roundOrLatest, "latest", StringComparison.OrdinalIgnoreCase))
         {
-            return BadRequest(new { message = "Round number must be greater than 0" });
+            var results = await _raceResultsService.GetLastRaceResultsAsync();
+            if (results.Count == 0)
+            {
+                return NotFound(new { message = "No race results found for the latest race" });
+            }
+            return Ok(results);
         }
 
-        var results = await _raceResultsService.GetRaceResultsByRoundAsync(round);
+        if (!int.TryParse(roundOrLatest, out var round) || round < 1)
+        {
+            return BadRequest(new { message = "Use a round number (1 or greater) or 'latest' for the most recent race results" });
+        }
 
-        if (results.Count == 0)
+        var resultsByRound = await _raceResultsService.GetRaceResultsByRoundAsync(round);
+
+        if (resultsByRound.Count == 0)
         {
             return NotFound(new { message = $"No race results found for round {round}" });
         }
 
-        return Ok(results);
+        return Ok(resultsByRound);
     }
 
     [HttpGet("next")]

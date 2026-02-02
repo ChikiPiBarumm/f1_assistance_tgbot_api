@@ -58,4 +58,12 @@ public class UserStateService : IUserStateService
             return Task.FromResult(state);
         }
     }
+
+    public async Task<int> GetEffectiveYearAsync(long userId)
+    {
+        var userState = await GetUserStateAsync(userId);
+        return userState.IsHistoryMode && userState.SelectedYear.HasValue
+            ? userState.SelectedYear.Value
+            : DateTime.UtcNow.Year;
+    }
 }

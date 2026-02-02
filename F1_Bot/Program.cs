@@ -1,6 +1,7 @@
 using F1_Bot.Services;
 using F1_Bot.Infrastructure.OpenF1;
 using F1_Bot.Presentation.Bot;
+using F1_Bot.Presentation.Bot.Handlers;
 using Telegram.Bot;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -55,12 +56,19 @@ builder.Services.AddSingleton<ITelegramBotClient>(sp =>
     return new TelegramBotClient(botOptions, httpClient);
 });
 
-builder.Services.AddScoped<TelegramBotMessageSender>();
+builder.Services.AddScoped<MessageSender>();
+builder.Services.AddScoped<IArgumentParser, ArgumentParser>();
+builder.Services.AddScoped<IStartHandler, StartHandler>();
+builder.Services.AddScoped<IRaceDetailsHandler, RaceDetailsHandler>();
+builder.Services.AddScoped<ICalendarHandler, CalendarHandler>();
+builder.Services.AddScoped<IStandingsHandler, StandingsHandler>();
+builder.Services.AddScoped<IResultsHandler, ResultsHandler>();
+builder.Services.AddScoped<IModeHandler, ModeHandler>();
 builder.Services.AddScoped<TelegramBotCommandRouter>();
-builder.Services.AddSingleton<TelegramBotPollingService>();
+builder.Services.AddSingleton<PollingService>();
 builder.Services.AddSingleton<ITelegramBotService>(sp => 
-    sp.GetRequiredService<TelegramBotPollingService>());
-builder.Services.AddHostedService(sp => sp.GetRequiredService<TelegramBotPollingService>());
+    sp.GetRequiredService<PollingService>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<PollingService>());
 
 var app = builder.Build();
 
