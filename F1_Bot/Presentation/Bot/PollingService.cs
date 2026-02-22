@@ -1,3 +1,4 @@
+using F1_Bot.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -86,10 +87,35 @@ public class PollingService : BackgroundService, ITelegramBotService
         return Task.CompletedTask;
     }
 
-    public override Task StartAsync(CancellationToken cancellationToken)
+    public override async Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting Telegram bot background service...");
-        return base.StartAsync(cancellationToken);
+
+        await WarmUpCalendarCacheAsync(cancellationToken);
+
+        await base.StartAsync(cancellationToken);
+    }
+
+    private async Task WarmUpCalendarCacheAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _serviceScopeFactory.CreateScope();
+            var calendarService = scope.ServiceProvider.GetRequiredService<ICalendarService>();
+            var year = DateTime.UtcNow.Year;
+            _logger.LogInformation("Pre-warming calendar cache for year {Year} and {PrevYear}...", year, year - 1);
+            await calendarService.GetRacesAsync(year);
+            await calendarService.GetRacesAsync(year - 1);
+            _logger.LogInformation("Calendar cache pre-warmed.");
+        }
+        catch (OperationCanceledException)
+        {
+            // Ignore when app is shutting down
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Calendar cache pre-warm failed (first Last Race Info may be slower).");
+        }
     }
 
     public override Task StopAsync(CancellationToken cancellationToken)

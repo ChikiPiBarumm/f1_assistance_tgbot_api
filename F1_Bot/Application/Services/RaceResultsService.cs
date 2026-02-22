@@ -62,8 +62,14 @@ public class RaceResultsService : IRaceResultsService
 
             if (latestRaceSession == null)
             {
-                _logger.LogWarning("No race session found for type={SessionType}, meeting={MeetingKey}", sessionType, meetingKey);
-                return new List<RaceResult>();
+                _logger.LogInformation("No race session for meeting_key=latest, searching previous meetings by calendar.");
+                var found = await FindLastCompletedRaceSessionAsync();
+                if (found == null)
+                {
+                    _logger.LogWarning("No race session found in calendar fallback.");
+                    return new List<RaceResult>();
+                }
+                return await GetResultsBySessionKeyAsync(found.Value.sessionKey);
             }
 
             _logger.LogDebug("Found race session {SessionKey} for meeting {MeetingKey}", latestRaceSession.Session_Key, latestRaceSession.Meeting_Key);
@@ -78,7 +84,7 @@ public class RaceResultsService : IRaceResultsService
         }
     }
 
-    public async Task<(List<RaceResult> Results, int MeetingKey)> GetLastRaceResultsWithMeetingKeyAsync()
+    public async Task<(List<RaceResult> Results, int MeetingKey, string? RaceName, int? Year)> GetLastRaceResultsWithMeetingKeyAsync()
     {
         try
         {
@@ -92,23 +98,114 @@ public class RaceResultsService : IRaceResultsService
                 .OrderByDescending(s => s.Date_Start ?? DateTime.MinValue)
                 .FirstOrDefault();
 
+            string sessionKey;
+            int meetingKeyValue;
+            string? raceName = null;
+            int? year = null;
             if (latestRaceSession == null)
             {
-                _logger.LogWarning("No race session found for type={SessionType}, meeting={MeetingKey}", sessionType, meetingKey);
-                return (new List<RaceResult>(), 0);
+                _logger.LogInformation("No race session for meeting_key=latest, searching previous meetings by calendar.");
+                var found = await FindLastCompletedRaceSessionAsync();
+                if (found == null)
+                {
+                    _logger.LogWarning("No race session found in calendar fallback.");
+                    return (new List<RaceResult>(), 0, null, null);
+                }
+                sessionKey = found.Value.sessionKey;
+                meetingKeyValue = found.Value.meetingKey;
+                raceName = found.Value.raceName;
+                year = found.Value.year;
+            }
+            else
+            {
+                _logger.LogDebug("Found race session {SessionKey} for meeting {MeetingKey}", latestRaceSession.Session_Key, latestRaceSession.Meeting_Key);
+                sessionKey = latestRaceSession.Session_Key.ToString();
+                meetingKeyValue = latestRaceSession.Meeting_Key;
             }
 
-            _logger.LogDebug("Found race session {SessionKey} for meeting {MeetingKey}", latestRaceSession.Session_Key, latestRaceSession.Meeting_Key);
-
-            var sessionKey = latestRaceSession.Session_Key.ToString();
             var results = await GetResultsBySessionKeyAsyncNoDrivers(sessionKey);
-            return (results, latestRaceSession.Meeting_Key);
+            return (results, meetingKeyValue, raceName, year);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error while getting last race results with meeting key");
-            return (new List<RaceResult>(), 0);
+            return (new List<RaceResult>(), 0, null, null);
         }
+    }
+
+    public async Task<(int MeetingKey, int Round, int Year)?> GetLastRaceMeetingInfoAsync()
+    {
+        try
+        {
+            const string sessionType = "Race";
+            const string meetingKeyLatest = "latest";
+            _logger.LogInformation("Getting last race meeting info");
+
+            var sessions = await _openF1Client.GetSessionsAsync(sessionType, meetingKeyLatest);
+            var latestRaceSession = sessions
+                .OrderByDescending(s => s.Date_Start ?? DateTime.MinValue)
+                .FirstOrDefault();
+
+            if (latestRaceSession != null)
+            {
+                var meetingKey = latestRaceSession.Meeting_Key;
+                var currentYear = DateTime.UtcNow.Year;
+                foreach (var y in new[] { currentYear, currentYear - 1 })
+                {
+                    var races = await _calendarService.GetRacesAsync(y);
+                    var race = races.FirstOrDefault(r => r.Id == meetingKey);
+                    if (race != null)
+                        return (meetingKey, race.RoundNumber, y);
+                }
+                _logger.LogWarning("Found session for meeting {MeetingKey} but no matching race in calendar", meetingKey);
+                return null;
+            }
+
+            _logger.LogInformation("No race session for meeting_key=latest, searching previous meetings by calendar.");
+            var found = await FindLastCompletedRaceSessionAsync();
+            if (found == null)
+            {
+                _logger.LogWarning("No race session found in calendar fallback.");
+                return null;
+            }
+            return (found.Value.meetingKey, found.Value.round, found.Value.year);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while getting last race meeting info");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// When meeting_key=latest has no Race session, search backwards through calendar (previous year then current year)
+    /// and return the first meeting that has a Race session. Only considers completed races.
+    /// Returns race name, year and round from calendar so caller can build heading without another API call.
+    /// </summary>
+    private async Task<(string sessionKey, int meetingKey, string raceName, int year, int round)?> FindLastCompletedRaceSessionAsync()
+    {
+        var currentYear = DateTime.UtcNow.Year;
+        foreach (var y in new[] { currentYear - 1, currentYear })
+        {
+            var races = await _calendarService.GetRacesAsync(y);
+            var completedRaces = races
+                .Where(r => string.Equals(r.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(r => r.Date)
+                .ToList();
+            foreach (var race in completedRaces)
+            {
+                var sessions = await _openF1Client.GetSessionsAsync("Race", race.Id.ToString());
+                var latestSession = sessions
+                    .OrderByDescending(s => s.Date_Start ?? DateTime.MinValue)
+                    .FirstOrDefault();
+                if (latestSession != null)
+                {
+                    _logger.LogInformation("Found race session for meeting {MeetingKey} (year {Year}, round {Round})", race.Id, y, race.RoundNumber);
+                    return (latestSession.Session_Key.ToString(), latestSession.Meeting_Key, race.Name, y, race.RoundNumber);
+                }
+            }
+        }
+        return null;
     }
 
     public async Task<List<RaceResult>> GetRaceResultsByRoundAsync(int round, int? year = null)

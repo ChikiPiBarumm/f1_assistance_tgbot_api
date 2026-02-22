@@ -12,6 +12,7 @@ public class RaceDetailsHandler : IRaceDetailsHandler
     private readonly MessageSender _messageSender;
     private readonly ICalendarService _calendarService;
     private readonly IRaceDetailsService _raceDetailsService;
+    private readonly IRaceResultsService _raceResultsService;
     private readonly IArgumentParser _argumentParser;
     private readonly ITelegramBotClient _botClient;
     private readonly IResultsHandler _resultsHandler;
@@ -20,6 +21,7 @@ public class RaceDetailsHandler : IRaceDetailsHandler
         MessageSender messageSender,
         ICalendarService calendarService,
         IRaceDetailsService raceDetailsService,
+        IRaceResultsService raceResultsService,
         IArgumentParser argumentParser,
         ITelegramBotClient botClient,
         IResultsHandler resultsHandler)
@@ -27,6 +29,7 @@ public class RaceDetailsHandler : IRaceDetailsHandler
         _messageSender = messageSender;
         _calendarService = calendarService;
         _raceDetailsService = raceDetailsService;
+        _raceResultsService = raceResultsService;
         _argumentParser = argumentParser;
         _botClient = botClient;
         _resultsHandler = resultsHandler;
@@ -48,6 +51,28 @@ public class RaceDetailsHandler : IRaceDetailsHandler
         }
 
         await HandleRaceDetailsByMeetingKeyAsync(message, nextRace.Id, nextRace.RoundNumber, effectiveYear, cancellationToken, fromNextRace: true);
+    }
+
+    public async Task HandleLastRaceInfoAsync(Message message, string[] arguments, CancellationToken cancellationToken)
+    {
+        var meetingInfo = await _raceResultsService.GetLastRaceMeetingInfoAsync();
+
+        if (meetingInfo == null)
+        {
+            await _messageSender.SendMessageAsync(
+                message.Chat.Id,
+                "❌ No race information available.",
+                cancellationToken: cancellationToken);
+            return;
+        }
+
+        await HandleRaceDetailsByMeetingKeyAsync(
+            message,
+            meetingInfo.Value.MeetingKey,
+            meetingInfo.Value.Round,
+            meetingInfo.Value.Year,
+            cancellationToken,
+            fromNextRace: false);
     }
 
     public async Task HandleRaceDetailsAsync(Message message, string[] arguments, CancellationToken cancellationToken)

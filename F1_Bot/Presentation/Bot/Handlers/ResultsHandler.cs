@@ -30,37 +30,6 @@ public class ResultsHandler : IResultsHandler
         _logger = logger;
     }
 
-    public async Task HandleLastRaceResultsAsync(Message message, string[] arguments, CancellationToken cancellationToken)
-    {
-        var (results, meetingKey) = await _raceResultsService.GetLastRaceResultsWithMeetingKeyAsync();
-
-        if (results.Count == 0)
-        {
-            await _messageSender.SendMessageAsync(
-                message.Chat.Id,
-                "❌ No race results available.",
-                cancellationToken: cancellationToken);
-            return;
-        }
-
-        var raceDetails = await _raceDetailsService.GetRaceByMeetingKeyAsync(meetingKey, round: 0, year: null);
-        var year = raceDetails?.Date.Year ?? DateTime.UtcNow.Year;
-        var resultsText = BuildResultsText(results, raceDetails, year);
-        var keyboard = new InlineKeyboardMarkup(new[]
-        {
-            new[]
-            {
-                InlineKeyboardButton.WithCallbackData("⬅️ Back to Menu", "results|back_to_race")
-            }
-        });
-
-        await _messageSender.SendMessageAsync(
-            message.Chat.Id,
-            resultsText,
-            keyboard,
-            cancellationToken: cancellationToken);
-    }
-
     public async Task HandleResultsByMeetingKeyAsync(Message message, int meetingKey, int year, int round, CancellationToken cancellationToken)
     {
         var results = await _raceResultsService.GetRaceResultsByMeetingKeyAsync(meetingKey);
@@ -75,7 +44,7 @@ public class ResultsHandler : IResultsHandler
         }
 
         var raceDetails = await _raceDetailsService.GetRaceByMeetingKeyAsync(meetingKey, round, year);
-        var resultsText = BuildResultsText(results, raceDetails, year);
+        var resultsText = BuildResultsText(results, raceDetails, year, null);
         var keyboard = new InlineKeyboardMarkup(new[]
         {
             new[]
@@ -97,11 +66,13 @@ public class ResultsHandler : IResultsHandler
             cancellationToken: cancellationToken);
     }
 
-    private static string BuildResultsText(List<RaceResult> results, RaceDetails? raceDetails, int year)
+    private static string BuildResultsText(List<RaceResult> results, RaceDetails? raceDetails, int year, string? raceName = null)
     {
-        var heading = raceDetails != null
-            ? $"🏁 {raceDetails.Name} {year}\n\n"
-            : $"🏁 Race Results {year}\n\n";
+        var heading = raceName != null
+            ? $"🏁 {raceName} {year}\n\n"
+            : raceDetails != null
+                ? $"🏁 {raceDetails.Name} {year}\n\n"
+                : $"🏁 Race Results {year}\n\n";
         var text = heading;
         foreach (var result in results.Take(10))
         {

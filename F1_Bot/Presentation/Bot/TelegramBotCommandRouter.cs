@@ -113,11 +113,11 @@ public class TelegramBotCommandRouter
 
                 case "/last_race":
                 case "/lastrace":
-                    await _resultsHandler.HandleLastRaceResultsAsync(message, arguments, linkedCts.Token);
+                    await _raceDetailsHandler.HandleLastRaceInfoAsync(message, arguments, linkedCts.Token);
                     break;
 
                 case "/results":
-                    await _resultsHandler.HandleLastRaceResultsAsync(message, arguments, linkedCts.Token);
+                    await _raceDetailsHandler.HandleLastRaceInfoAsync(message, arguments, linkedCts.Token);
                     break;
 
                 case "/race":
@@ -249,7 +249,7 @@ public class TelegramBotCommandRouter
                 await _standingsHandler.ShowStandingsChoiceAsync(message, cancellationToken);
                 break;
             case "results":
-                await _resultsHandler.HandleLastRaceResultsAsync(message, Array.Empty<string>(), cancellationToken);
+                await _raceDetailsHandler.HandleLastRaceInfoAsync(message, Array.Empty<string>(), cancellationToken);
                 break;
             case "mode":
                 await _modeHandler.HandleModeAsync(message, cancellationToken);

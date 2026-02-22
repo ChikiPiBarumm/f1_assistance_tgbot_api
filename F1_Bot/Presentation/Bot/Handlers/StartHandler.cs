@@ -42,7 +42,7 @@ To change season: tap the Season button (shows the current year). You can switch
             : new[]
             {
                 new[] { InlineKeyboardButton.WithCallbackData("📅 Calendar", "nav|calendar"), InlineKeyboardButton.WithCallbackData("🏁 Next Race", "nav|next") },
-                new[] { InlineKeyboardButton.WithCallbackData("📊 Standings", "nav|standings"), InlineKeyboardButton.WithCallbackData("🏆 Last Race Result", "nav|results") },
+                new[] { InlineKeyboardButton.WithCallbackData("📊 Standings", "nav|standings"), InlineKeyboardButton.WithCallbackData("🏆 Last Race Info", "nav|results") },
                 new[] { InlineKeyboardButton.WithCallbackData($"⚙️ Season {effectiveYear}", "nav|mode"), InlineKeyboardButton.WithCallbackData("ℹ️ Help", "nav|help") }
             };
         var quickActionsKeyboard = new InlineKeyboardMarkup(quickActionsRows);
@@ -64,7 +64,7 @@ To change season: tap the Season button (shows the current year). You can switch
 
 📊 Standings — Driver and constructor standings. You can view by round or switch season.
 
-🏆 Last Race Result — Last race results or pick another round. From there you can open standings or race details.
+🏆 Last Race Info — Opens the last race details (same as picking a race from the calendar). From there you can open results, standings, or return to calendar.
 
 ⚙️ Season (year) — Current season or history. Tap to switch to current season or choose a past year.
 
