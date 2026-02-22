@@ -123,7 +123,7 @@ public class RaceResultsService : IRaceResultsService
                 meetingKeyValue = latestRaceSession.Meeting_Key;
             }
 
-            var results = await GetResultsBySessionKeyAsyncNoDrivers(sessionKey);
+            var results = await GetResultsBySessionKeyAsync(sessionKey);
             return (results, meetingKeyValue, raceName, year);
         }
         catch (Exception ex)
@@ -264,7 +264,7 @@ public class RaceResultsService : IRaceResultsService
             }
 
             var sessionKey = raceSession.Session_Key.ToString();
-            return await GetResultsBySessionKeyAsyncNoDrivers(sessionKey);
+            return await GetResultsBySessionKeyAsync(sessionKey);
         }
         catch (Exception ex)
         {
@@ -289,9 +289,9 @@ public class RaceResultsService : IRaceResultsService
             {
                 RaceId = r.Meeting_Key,
                 Position = r.Position ?? 0,
-                DriverName = $"Driver #{r.Driver_Number}",
+                DriverName = string.IsNullOrWhiteSpace(r.Full_Name) ? $"Driver #{r.Driver_Number}" : r.Full_Name,
                 DriverNumber = r.Driver_Number,
-                TeamName = "-",
+                TeamName = string.IsNullOrWhiteSpace(r.Team_Name) ? "-" : r.Team_Name,
                 Points = (int)r.Points,
                 Status = string.IsNullOrWhiteSpace(r.Status) ? "Finished" : r.Status
             })

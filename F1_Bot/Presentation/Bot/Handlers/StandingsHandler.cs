@@ -1,5 +1,6 @@
 using F1_Bot.Services;
 using Microsoft.Extensions.Logging;
+using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
 
@@ -11,6 +12,8 @@ public class StandingsHandler : IStandingsHandler
     private readonly IStandingsService _standingsService;
     private readonly IUserStateService _userStateService;
     private readonly IArgumentParser _argumentParser;
+    private readonly IRaceDetailsService _raceDetailsService;
+    private readonly ITelegramBotClient _botClient;
     private readonly ILogger<StandingsHandler> _logger;
 
     public StandingsHandler(
@@ -18,18 +21,42 @@ public class StandingsHandler : IStandingsHandler
         IStandingsService standingsService,
         IUserStateService userStateService,
         IArgumentParser argumentParser,
+        IRaceDetailsService raceDetailsService,
+        ITelegramBotClient botClient,
         ILogger<StandingsHandler> logger)
     {
         _messageSender = messageSender;
         _standingsService = standingsService;
         _userStateService = userStateService;
         _argumentParser = argumentParser;
+        _raceDetailsService = raceDetailsService;
+        _botClient = botClient;
         _logger = logger;
     }
 
     public async Task ShowStandingsChoiceAsync(Message message, CancellationToken cancellationToken)
     {
         var effectiveYear = await _userStateService.GetEffectiveYearAsync(message.From!.Id);
+
+        var driverStandings = await _standingsService.GetDriverStandingsAsync(effectiveYear, null);
+        if (driverStandings.Count == 0)
+        {
+            var noStandingsText = effectiveYear == DateTime.UtcNow.Year
+                ? $"📊 Standings are not available yet for the {effectiveYear} season. Championship data will appear after the first race has been completed."
+                : $"📊 No standings data is available for {effectiveYear}.";
+
+            var backKeyboard = new InlineKeyboardMarkup(new[]
+            {
+                new[] { InlineKeyboardButton.WithCallbackData("⬅️ Go back", "standings|choice_back") }
+            });
+
+            await _messageSender.SendMessageAsync(
+                message.Chat.Id,
+                noStandingsText,
+                backKeyboard,
+                cancellationToken: cancellationToken);
+            return;
+        }
 
         var keyboard = new InlineKeyboardMarkup(new[]
         {
@@ -38,15 +65,7 @@ public class StandingsHandler : IStandingsHandler
                 InlineKeyboardButton.WithCallbackData("🏎 Driver Standings", $"standings|drivers|{effectiveYear}|"),
                 InlineKeyboardButton.WithCallbackData("🏢 Team Standings", $"standings|teams|{effectiveYear}|")
             },
-            new[]
-            {
-                InlineKeyboardButton.WithCallbackData("📅 By Round", $"standings|byround|{effectiveYear}")
-            },
-            new[]
-            {
-                InlineKeyboardButton.WithCallbackData($"⚙️ Season {effectiveYear}", "nav|mode"),
-                InlineKeyboardButton.WithCallbackData("🏠 Main Menu", "nav|main")
-            }
+            new[] { InlineKeyboardButton.WithCallbackData("⬅️ Go back", "standings|choice_back") }
         });
 
         await _messageSender.SendMessageAsync(
@@ -59,7 +78,8 @@ public class StandingsHandler : IStandingsHandler
     public async Task HandleDriverStandingsAsync(Message message, string[] arguments, CancellationToken cancellationToken)
     {
         var (year, round) = await _argumentParser.ParseYearRoundAsync(arguments, message.From!.Id, cancellationToken);
-        var standings = await _standingsService.GetDriverStandingsAsync(year, round);
+        int? meetingKey = arguments.Length > 2 && int.TryParse(arguments[2], out var mk) ? mk : null;
+        var standings = await _standingsService.GetDriverStandingsAsync(year, round, meetingKey);
 
         if (standings.Count == 0)
         {
@@ -71,14 +91,16 @@ public class StandingsHandler : IStandingsHandler
         }
 
         var effectiveYear = year ?? DateTime.UtcNow.Year;
+        var headingSuffix = await GetStandingsHeadingSuffixAsync(effectiveYear, round, meetingKey, cancellationToken);
 
-        var standingsText = $"🏆 Driver Championship Standings {effectiveYear}\n\n";
+        var standingsText = $"🏆 Driver Championship Standings {effectiveYear}{headingSuffix}\n\n";
         foreach (var standing in standings.Take(10))
         {
-            standingsText += $"{standing.Position}. {standing.DriverName} ({standing.TeamName}) - {standing.Points} pts\n";
+            var driverLabel = string.IsNullOrWhiteSpace(standing.DriverName) ? $"#{standing.DriverNumber}" : standing.DriverName;
+            standingsText += $"{standing.Position}. {driverLabel} - {standing.Points} pts\n";
         }
 
-        var inlineKeyboard = BuildStandingsKeyboard(effectiveYear, round);
+        var inlineKeyboard = BuildStandingsBackKeyboard();
 
         try
         {
@@ -106,7 +128,8 @@ public class StandingsHandler : IStandingsHandler
     public async Task HandleTeamStandingsAsync(Message message, string[] arguments, CancellationToken cancellationToken)
     {
         var (year, round) = await _argumentParser.ParseYearRoundAsync(arguments, message.From!.Id, cancellationToken);
-        var standings = await _standingsService.GetTeamStandingsAsync(year, round);
+        int? meetingKey = arguments.Length > 2 && int.TryParse(arguments[2], out var mk) ? mk : null;
+        var standings = await _standingsService.GetTeamStandingsAsync(year, round, meetingKey);
 
         if (standings.Count == 0)
         {
@@ -118,14 +141,15 @@ public class StandingsHandler : IStandingsHandler
         }
 
         var effectiveYear = year ?? DateTime.UtcNow.Year;
+        var headingSuffix = await GetStandingsHeadingSuffixAsync(effectiveYear, round, meetingKey, cancellationToken);
 
-        var standingsText = $"🏆 Constructor Championship Standings {effectiveYear}\n\n";
+        var standingsText = $"🏆 Constructor Championship Standings {effectiveYear}{headingSuffix}\n\n";
         foreach (var standing in standings.Take(10))
         {
             standingsText += $"{standing.Position}. {standing.TeamName} - {standing.Points} pts\n";
         }
 
-        var inlineKeyboard = BuildStandingsKeyboard(effectiveYear, round);
+        var inlineKeyboard = BuildStandingsBackKeyboard();
 
         try
         {
@@ -150,19 +174,19 @@ public class StandingsHandler : IStandingsHandler
         }
     }
 
-    public async Task HandleStandingsCallbackAsync(Message message, string action, string? yearValue, string? roundValue, CancellationToken cancellationToken)
+    public async Task HandleStandingsCallbackAsync(Message message, string action, string? yearValue, string? roundValue, string? meetingKeyValue, CancellationToken cancellationToken)
     {
         switch (action)
         {
             case "drivers":
             {
-                var args = new[] { yearValue ?? "", roundValue ?? "" };
+                var args = new[] { yearValue ?? "", roundValue ?? "", meetingKeyValue ?? "" };
                 await HandleDriverStandingsAsync(message, args, cancellationToken);
                 break;
             }
             case "teams":
             {
-                var args = new[] { yearValue ?? "", roundValue ?? "" };
+                var args = new[] { yearValue ?? "", roundValue ?? "", meetingKeyValue ?? "" };
                 await HandleTeamStandingsAsync(message, args, cancellationToken);
                 break;
             }
@@ -172,28 +196,37 @@ public class StandingsHandler : IStandingsHandler
                     "Work in progress.",
                     cancellationToken: cancellationToken);
                 break;
+            case "back":
+            case "choice_back":
+                try
+                {
+                    await _botClient.DeleteMessage(message.Chat.Id, message.MessageId, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not delete standings message");
+                }
+                break;
         }
     }
 
-    private static InlineKeyboardMarkup BuildStandingsKeyboard(int effectiveYear, int? round)
+    private async Task<string> GetStandingsHeadingSuffixAsync(int year, int? round, int? meetingKey, CancellationToken cancellationToken)
     {
-        var roundStr = round?.ToString() ?? string.Empty;
+        if (!meetingKey.HasValue || !round.HasValue)
+            return string.Empty;
+
+        var race = await _raceDetailsService.GetRaceByMeetingKeyAsync(meetingKey.Value, round.Value, year);
+        if (race == null)
+            return string.Empty;
+
+        return $" (Round {round.Value} - {race.Name})";
+    }
+
+    private static InlineKeyboardMarkup BuildStandingsBackKeyboard()
+    {
         return new InlineKeyboardMarkup(new[]
         {
-            new[]
-            {
-                InlineKeyboardButton.WithCallbackData("🏎 Driver Standings", $"standings|drivers|{effectiveYear}|{roundStr}"),
-                InlineKeyboardButton.WithCallbackData("🏢 Team Standings", $"standings|teams|{effectiveYear}|{roundStr}")
-            },
-            new[]
-            {
-                InlineKeyboardButton.WithCallbackData("📅 By Round", $"standings|byround|{effectiveYear}"),
-                InlineKeyboardButton.WithCallbackData($"⚙️ Season {effectiveYear}", "nav|mode")
-            },
-            new[]
-            {
-                InlineKeyboardButton.WithCallbackData("🏠 Main Menu", "nav|main")
-            }
+            new[] { InlineKeyboardButton.WithCallbackData("⬅️ Go back", "standings|back") }
         });
     }
 }

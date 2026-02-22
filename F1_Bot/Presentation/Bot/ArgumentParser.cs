@@ -35,7 +35,7 @@ public class ArgumentParser : IArgumentParser
         {
             if (int.TryParse(arguments[0], out var value))
             {
-                if (value >= 1950 && value <= DateTime.UtcNow.Year + 1)
+                if (value >= 2023 && value <= DateTime.UtcNow.Year + 1)
                 {
                     year = value;
                 }
@@ -52,18 +52,28 @@ public class ArgumentParser : IArgumentParser
         }
         else if (arguments.Length >= 2)
         {
-            if (int.TryParse(arguments[0], out var first) && int.TryParse(arguments[1], out var second))
+            var firstParsed = int.TryParse(arguments[0], out var first);
+            int secondVal = 0;
+            var secondParsed = !string.IsNullOrWhiteSpace(arguments[1]) && int.TryParse(arguments[1], out secondVal);
+
+            if (firstParsed && first >= 2023 && first <= DateTime.UtcNow.Year + 1)
             {
-                if (first >= 1950 && first <= DateTime.UtcNow.Year + 1)
+                year = first;
+                if (secondParsed)
                 {
-                    year = first;
-                    round = second;
+                    if (secondVal >= 1 && secondVal <= 24)
+                        round = secondVal;
+                    else if (secondVal >= 2023 && secondVal <= DateTime.UtcNow.Year + 1)
+                    {
+                        year = secondVal;
+                        round = first >= 1 && first <= 24 ? first : null;
+                    }
                 }
-                else if (second >= 1950 && second <= DateTime.UtcNow.Year + 1)
-                {
-                    round = first;
-                    year = second;
-                }
+            }
+            else if (firstParsed && secondParsed && secondVal >= 2023 && secondVal <= DateTime.UtcNow.Year + 1)
+            {
+                year = secondVal;
+                round = first >= 1 && first <= 24 ? first : null;
             }
         }
 

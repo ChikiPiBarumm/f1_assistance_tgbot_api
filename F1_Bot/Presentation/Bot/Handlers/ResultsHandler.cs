@@ -49,8 +49,8 @@ public class ResultsHandler : IResultsHandler
         {
             new[]
             {
-                InlineKeyboardButton.WithCallbackData("📊 Driver Standings", $"standings|drivers|{year}|"),
-                InlineKeyboardButton.WithCallbackData("🏢 Team Standings", $"standings|teams|{year}|")
+                InlineKeyboardButton.WithCallbackData("🏎 Driver Standings", $"standings|drivers|{year}|{round}|{meetingKey}"),
+                InlineKeyboardButton.WithCallbackData("🏢 Team Standings", $"standings|teams|{year}|{round}|{meetingKey}")
             },
             new[]
             {
@@ -76,7 +76,8 @@ public class ResultsHandler : IResultsHandler
         var text = heading;
         foreach (var result in results.Take(10))
         {
-            text += $"P{result.Position}. #{result.DriverNumber} — {result.Points} pts\n";
+            var driverLabel = string.IsNullOrWhiteSpace(result.DriverName) ? $"#{result.DriverNumber}" : result.DriverName;
+            text += $"P{result.Position}. {driverLabel} — {result.Points} pts\n";
         }
         return text;
     }

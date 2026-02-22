@@ -12,7 +12,7 @@ public class CalendarService : ICalendarService
     private readonly ILogger<CalendarService> _logger;
     private static readonly TimeSpan CurrentSeasonCacheExpiration = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan HistoricalCacheExpiration = TimeSpan.FromHours(1);
-    private const int FirstF1Season = 1950;
+    private const int FirstF1Season = 2023;
 
     public CalendarService(IOpenF1Client openF1Client, IMemoryCache cache, ILogger<CalendarService> logger)
     {

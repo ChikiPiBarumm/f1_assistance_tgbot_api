@@ -133,7 +133,7 @@ public class CalendarHandler : ICalendarHandler
         if (currentPage > 1)
             navButtons.Add(InlineKeyboardButton.WithCallbackData("⬅️ Prev", $"calendar|page|{year}|{currentPage - 1}"));
         if (currentPage < totalPages)
-            navButtons.Add(InlineKeyboardButton.WithCallbackData("➡️ Next", $"calendar|page|{year}|{currentPage + 1}"));
+            navButtons.Add(InlineKeyboardButton.WithCallbackData("Next ➡️", $"calendar|page|{year}|{currentPage + 1}"));
         if (navButtons.Count > 0)
             rows.Add(navButtons.ToArray());
 

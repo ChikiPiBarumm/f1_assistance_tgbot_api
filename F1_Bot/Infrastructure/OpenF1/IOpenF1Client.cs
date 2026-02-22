@@ -10,8 +10,16 @@ public interface IOpenF1Client
         string sessionKey,
         CancellationToken cancellationToken = default);
 
+    Task<List<OpenF1ChampionshipDriverDto>> GetDriverChampionshipByMeetingKeyAsync(
+        int meetingKey,
+        CancellationToken cancellationToken = default);
+
     Task<List<OpenF1ChampionshipTeamDto>> GetTeamChampionshipAsync(
         string sessionKey,
+        CancellationToken cancellationToken = default);
+
+    Task<List<OpenF1ChampionshipTeamDto>> GetTeamChampionshipByMeetingKeyAsync(
+        int meetingKey,
         CancellationToken cancellationToken = default);
 
     Task<List<OpenF1DriverDto>> GetDriversAsync(

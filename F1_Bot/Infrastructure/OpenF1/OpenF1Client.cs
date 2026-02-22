@@ -132,6 +132,30 @@ public class OpenF1Client : IOpenF1Client
         }
     }
 
+    public async Task<List<OpenF1ChampionshipDriverDto>> GetDriverChampionshipByMeetingKeyAsync(
+        int meetingKey,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var url = $"/v1/championship_drivers?meeting_key={meetingKey}";
+            _logger.LogInformation("[OpenF1] GET {Endpoint}", url);
+
+            var result = await GetWith429RetryAsync<List<OpenF1ChampionshipDriverDto>>(url, cancellationToken);
+            return result ?? new List<OpenF1ChampionshipDriverDto>();
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error while fetching driver championship for meeting {MeetingKey}", meetingKey);
+            return new List<OpenF1ChampionshipDriverDto>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while fetching driver championship for meeting {MeetingKey}", meetingKey);
+            return new List<OpenF1ChampionshipDriverDto>();
+        }
+    }
+
     public async Task<List<OpenF1ChampionshipTeamDto>> GetTeamChampionshipAsync(
         string sessionKey,
         CancellationToken cancellationToken = default)
@@ -155,7 +179,31 @@ public class OpenF1Client : IOpenF1Client
             return new List<OpenF1ChampionshipTeamDto>();
         }
     }
-    
+
+    public async Task<List<OpenF1ChampionshipTeamDto>> GetTeamChampionshipByMeetingKeyAsync(
+        int meetingKey,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var url = $"/v1/championship_teams?meeting_key={meetingKey}";
+            _logger.LogInformation("[OpenF1] GET {Endpoint}", url);
+
+            var result = await GetWith429RetryAsync<List<OpenF1ChampionshipTeamDto>>(url, cancellationToken);
+            return result ?? new List<OpenF1ChampionshipTeamDto>();
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error while fetching team championship for meeting {MeetingKey}", meetingKey);
+            return new List<OpenF1ChampionshipTeamDto>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while fetching team championship for meeting {MeetingKey}", meetingKey);
+            return new List<OpenF1ChampionshipTeamDto>();
+        }
+    }
+
     public async Task<List<OpenF1DriverDto>> GetDriversAsync(
         string sessionKey,
         CancellationToken cancellationToken = default)

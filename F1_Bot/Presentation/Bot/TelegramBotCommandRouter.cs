@@ -226,7 +226,7 @@ public class TelegramBotCommandRouter
                 break;
 
             case "standings":
-                await _standingsHandler.HandleStandingsCallbackAsync(message, action, p1, p2, cancellationToken);
+                await _standingsHandler.HandleStandingsCallbackAsync(message, action, p1, p2, p3, cancellationToken);
                 break;
 
             case "mode":

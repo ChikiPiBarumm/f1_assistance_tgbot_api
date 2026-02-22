@@ -216,7 +216,7 @@ public class RaceDetailsHandler : IRaceDetailsHandler
         if (currentRaceIndex < orderedRaces.Count - 1 && currentRaceIndex >= 0)
         {
             var nextRace = orderedRaces[currentRaceIndex + 1];
-            navButtons.Add(InlineKeyboardButton.WithCallbackData("➡️ Next Race", $"calendar|race|{effectiveYear}|{nextRace.RoundNumber}|{nextRace.Id}"));
+            navButtons.Add(InlineKeyboardButton.WithCallbackData("Next Race ➡️", $"calendar|race|{effectiveYear}|{nextRace.RoundNumber}|{nextRace.Id}"));
         }
 
         var keyboardRows = new List<InlineKeyboardButton[]>();

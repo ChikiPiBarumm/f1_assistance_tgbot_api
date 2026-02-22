@@ -37,7 +37,7 @@ public class ModeHandler : IModeHandler
         {
             await _messageSender.SendMessageAsync(
                 message.Chat.Id,
-                $"❌ Invalid year {year}. Valid range: 1950-{DateTime.UtcNow.Year + 1}",
+                $"❌ Invalid year {year}. Valid range: 2023-{DateTime.UtcNow.Year + 1}",
                 cancellationToken: cancellationToken);
             return;
         }
