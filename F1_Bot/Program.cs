@@ -14,6 +14,7 @@ builder.Services.AddOpenApi();
 builder.Services.AddHttpClient<IOpenF1Client, OpenF1Client>(client =>
 {
     client.BaseAddress = new Uri("https://api.openf1.org");
+    client.Timeout = TimeSpan.FromSeconds(15);
 });
 
 builder.Services.AddSingleton<IUserStateService, UserStateService>();
@@ -37,12 +38,11 @@ builder.Services.AddHttpClient("TelegramBot", client =>
 })
 .ConfigurePrimaryHttpMessageHandler(() => new System.Net.Http.SocketsHttpHandler
 {
-    PooledConnectionLifetime = TimeSpan.FromSeconds(1),
-    MaxConnectionsPerServer = 1,
+    PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+    MaxConnectionsPerServer = 4,
     ConnectTimeout = TimeSpan.FromSeconds(10),
-    PooledConnectionIdleTimeout = TimeSpan.FromSeconds(1)
-})
-.SetHandlerLifetime(TimeSpan.FromSeconds(1));
+    PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2)
+});
 
 builder.Services.AddSingleton<ITelegramBotClient>(sp =>
 {

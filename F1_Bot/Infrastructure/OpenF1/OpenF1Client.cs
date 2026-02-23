@@ -25,7 +25,7 @@ public class OpenF1Client : IOpenF1Client
         var url = $"/v1/meetings?year={year}";
         var result = await GetJsonWithRetryAsync<List<OpenF1MeetingDto>>(url, $"meetings for year {year}", cancellationToken);
         if (result != null)
-            _logger.LogInformation("Successfully fetched {Count} meetings from OpenF1", result.Count);
+            _logger.LogDebug("Successfully fetched {Count} meetings from OpenF1", result.Count);
         return result ?? new List<OpenF1MeetingDto>();
     }
 
@@ -40,7 +40,7 @@ public class OpenF1Client : IOpenF1Client
     {
         try
         {
-            _logger.LogInformation("[OpenF1] GET {Endpoint}", url);
+            _logger.LogDebug("[OpenF1] GET {Endpoint}", url);
             return await GetWith429RetryAsync<T>(url, cancellationToken);
         }
         catch (HttpRequestException ex)

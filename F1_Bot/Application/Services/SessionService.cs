@@ -62,7 +62,7 @@ public class SessionService : ISessionService
                 return cachedSchedule;
             }
 
-            _logger.LogInformation("Getting race schedule for meeting {MeetingKey}", meetingKey);
+            _logger.LogDebug("Getting race schedule for meeting {MeetingKey}", meetingKey);
 
             var allSessions = await _openF1Client.GetSessionsAsync("", meetingKey.ToString());
 
@@ -112,6 +112,13 @@ public class SessionService : ISessionService
     {
         try
         {
+            var cacheKey = $"race_session_key_{meetingKey}_{(round.HasValue ? round.Value.ToString() : "latest")}";
+            if (_cache.TryGetValue<string>(cacheKey, out var cachedSessionKey))
+            {
+                _logger.LogDebug("Returning cached race session key for meeting {MeetingKey}", meetingKey);
+                return cachedSessionKey;
+            }
+
             _logger.LogDebug("Getting race session key for meeting {MeetingKey}, round {Round}", meetingKey, round);
 
             var sessions = await _openF1Client.GetSessionsAsync(OpenF1SessionName.Race, meetingKey.ToString());
@@ -132,7 +139,9 @@ public class SessionService : ISessionService
                 return null;
             }
 
-            return raceSession.Session_Key.ToString();
+            var sessionKey = raceSession.Session_Key.ToString();
+            _cache.Set(cacheKey, sessionKey, new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = CacheExpiration });
+            return sessionKey;
         }
         catch (Exception ex)
         {

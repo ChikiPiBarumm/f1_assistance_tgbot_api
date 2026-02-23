@@ -4,6 +4,7 @@ using F1_Bot.Presentation.Bot.Handlers;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using ChatAction = Telegram.Bot.Types.Enums.ChatAction;
 
 namespace F1_Bot.Presentation.Bot;
 
@@ -47,6 +48,23 @@ public class TelegramBotCommandRouter
         _logger = logger;
     }
 
+    private void SendTypingIndicator(ChatId chatId, CancellationToken cancellationToken)
+    {
+        _ = SendTypingInternalAsync(chatId, cancellationToken);
+    }
+
+    private async Task SendTypingInternalAsync(ChatId chatId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _botClient.SendChatAction(chatId, ChatAction.Typing, cancellationToken: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "SendChatAction Typing failed");
+        }
+    }
+
     public async Task HandleUpdateAsync(Update update, CancellationToken cancellationToken = default)
     {
         if (update.CallbackQuery is { } callbackQuery)
@@ -79,29 +97,35 @@ public class TelegramBotCommandRouter
 
                 case "/history":
                 case "/history_mode":
+                    SendTypingIndicator(message.Chat.Id, linkedCts.Token);
                     await _modeHandler.HandleHistoryAsync(message, arguments, linkedCts.Token);
                     break;
 
                 case "/current":
                 case "/current_mode":
+                    SendTypingIndicator(message.Chat.Id, linkedCts.Token);
                     await _modeHandler.HandleCurrentAsync(message, linkedCts.Token);
                     break;
 
                 case "/mode":
                 case "/status":
+                    SendTypingIndicator(message.Chat.Id, linkedCts.Token);
                     await _modeHandler.HandleModeAsync(message, linkedCts.Token);
                     break;
 
                 case "/next_race":
                 case "/nextrace":
+                    SendTypingIndicator(message.Chat.Id, linkedCts.Token);
                     await _raceDetailsHandler.HandleNextRaceAsync(message, arguments, linkedCts.Token);
                     break;
 
                 case "/driver_standings":
                 case "/driverstandings":
+                    SendTypingIndicator(message.Chat.Id, linkedCts.Token);
                     await _standingsHandler.HandleDriverStandingsAsync(message, arguments, linkedCts.Token);
                     break;
                 case "/standings":
+                    SendTypingIndicator(message.Chat.Id, linkedCts.Token);
                     if (arguments.Length == 0)
                     {
                         await _standingsHandler.ShowStandingsChoiceAsync(message, linkedCts.Token);
@@ -114,37 +138,45 @@ public class TelegramBotCommandRouter
 
                 case "/team_standings":
                 case "/teamstandings":
+                    SendTypingIndicator(message.Chat.Id, linkedCts.Token);
                     await _standingsHandler.HandleTeamStandingsAsync(message, arguments, linkedCts.Token);
                     break;
 
                 case "/last_race":
                 case "/lastrace":
+                    SendTypingIndicator(message.Chat.Id, linkedCts.Token);
                     await _raceDetailsHandler.HandleLastRaceInfoAsync(message, arguments, linkedCts.Token);
                     break;
 
                 case "/results":
+                    SendTypingIndicator(message.Chat.Id, linkedCts.Token);
                     await _raceDetailsHandler.HandleLastRaceInfoAsync(message, arguments, linkedCts.Token);
                     break;
 
                 case "/race":
                 case "/race_info":
+                    SendTypingIndicator(message.Chat.Id, linkedCts.Token);
                     await _raceDetailsHandler.HandleRaceDetailsAsync(message, arguments, linkedCts.Token);
                     break;
 
                 case "/schedule":
                 case "/sessions":
+                    SendTypingIndicator(message.Chat.Id, linkedCts.Token);
                     await HandleScheduleCommandAsync(message, arguments, linkedCts.Token);
                     break;
 
                 case "/calendar":
+                    SendTypingIndicator(message.Chat.Id, linkedCts.Token);
                     await _calendarHandler.HandleCalendarCommandAsync(message, arguments, linkedCts.Token);
                     break;
 
                 case "/help":
+                    SendTypingIndicator(message.Chat.Id, linkedCts.Token);
                     await _startHandler.HandleHelpAsync(message, linkedCts.Token);
                     break;
 
                 default:
+                    SendTypingIndicator(message.Chat.Id, linkedCts.Token);
                     await _startHandler.HandleUnknownAsync(message, linkedCts.Token);
                     break;
             }
@@ -204,6 +236,8 @@ public class TelegramBotCommandRouter
         }
 
         var message = callbackQuery.Message;
+
+        SendTypingIndicator(message.Chat.Id, cancellationToken);
 
         switch (feature)
         {

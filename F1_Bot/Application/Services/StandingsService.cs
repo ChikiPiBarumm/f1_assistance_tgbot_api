@@ -3,23 +3,29 @@ using F1_Bot.Application.Interfaces;
 using F1_Bot.Domain.Constants;
 using F1_Bot.Domain.Models;
 using F1_Bot.Infrastructure.OpenF1;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace F1_Bot.Application;
 
 public class StandingsService : IStandingsService
 {
+    private const int CacheExpirationMinutes = 5;
+
     private readonly IOpenF1Client _openF1Client;
     private readonly ICalendarService _calendarService;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<StandingsService> _logger;
 
     public StandingsService(
         IOpenF1Client openF1Client,
         ICalendarService calendarService,
+        IMemoryCache cache,
         ILogger<StandingsService> logger)
     {
         _openF1Client = openF1Client;
         _calendarService = calendarService;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -31,12 +37,12 @@ public class StandingsService : IStandingsService
             int? resolvedMeetingKey = meetingKey;
             if (!resolvedMeetingKey.HasValue)
             {
-                _logger.LogInformation("Getting driver standings for year {Year}, round {Round} (season end)", effectiveYear, round);
+                _logger.LogDebug("Getting driver standings for year {Year}, round {Round} (season end)", effectiveYear, round);
                 resolvedMeetingKey = await GetMeetingKeyForYearRoundAsync(effectiveYear, round);
             }
             else
             {
-                _logger.LogInformation("Getting driver standings for meeting {MeetingKey} (after specific race)", resolvedMeetingKey);
+                _logger.LogDebug("Getting driver standings for meeting {MeetingKey} (after specific race)", resolvedMeetingKey);
             }
 
             if (!resolvedMeetingKey.HasValue)
@@ -45,14 +51,25 @@ public class StandingsService : IStandingsService
                 return new List<DriverStanding>();
             }
 
-            var championship = await _openF1Client.GetDriverChampionshipByMeetingKeyAsync(resolvedMeetingKey.Value);
+            var cacheKey = $"driver_standings_{resolvedMeetingKey.Value}";
+            if (_cache.TryGetValue<List<DriverStanding>>(cacheKey, out var cachedDriverStandings))
+            {
+                _logger.LogDebug("Returning cached driver standings for meeting {MeetingKey}", resolvedMeetingKey);
+                return cachedDriverStandings ?? new List<DriverStanding>();
+            }
+
+            var championshipTask = _openF1Client.GetDriverChampionshipByMeetingKeyAsync(resolvedMeetingKey.Value);
+            var driverLookupTask = GetDriverNameLookupForMeetingAsync(resolvedMeetingKey.Value);
+            await Task.WhenAll(championshipTask, driverLookupTask).ConfigureAwait(false);
+
+            var championship = await championshipTask;
+            var driverLookup = await driverLookupTask;
+
             if (championship.Count == 0)
             {
                 _logger.LogWarning("No championship data found for meeting {MeetingKey}", resolvedMeetingKey);
                 return new List<DriverStanding>();
             }
-
-            var driverLookup = await GetDriverNameLookupForMeetingAsync(resolvedMeetingKey.Value);
 
             var standings = championship
                 .OrderBy(d => d.Position_Current)
@@ -71,7 +88,13 @@ public class StandingsService : IStandingsService
                 })
                 .ToList();
 
-            _logger.LogInformation("Successfully retrieved {Count} driver standings", standings.Count);
+            var cacheOptions = new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(CacheExpirationMinutes)
+            };
+            _cache.Set(cacheKey, standings, cacheOptions);
+
+            _logger.LogDebug("Successfully retrieved {Count} driver standings", standings.Count);
             return standings;
         }
         catch (Exception ex)
@@ -89,18 +112,25 @@ public class StandingsService : IStandingsService
             int? resolvedMeetingKey = meetingKey;
             if (!resolvedMeetingKey.HasValue)
             {
-                _logger.LogInformation("Getting team standings for year {Year}, round {Round} (season end)", effectiveYear, round);
+                _logger.LogDebug("Getting team standings for year {Year}, round {Round} (season end)", effectiveYear, round);
                 resolvedMeetingKey = await GetMeetingKeyForYearRoundAsync(effectiveYear, round);
             }
             else
             {
-                _logger.LogInformation("Getting team standings for meeting {MeetingKey} (after specific race)", resolvedMeetingKey);
+                _logger.LogDebug("Getting team standings for meeting {MeetingKey} (after specific race)", resolvedMeetingKey);
             }
 
             if (!resolvedMeetingKey.HasValue)
             {
                 _logger.LogWarning("No meeting key found for year {Year}, round {Round}", effectiveYear, round);
                 return new List<TeamStanding>();
+            }
+
+            var teamCacheKey = $"team_standings_{resolvedMeetingKey.Value}";
+            if (_cache.TryGetValue<List<TeamStanding>>(teamCacheKey, out var cachedTeamStandings))
+            {
+                _logger.LogDebug("Returning cached team standings for meeting {MeetingKey}", resolvedMeetingKey);
+                return cachedTeamStandings ?? new List<TeamStanding>();
             }
 
             var openF1Teams = await _openF1Client.GetTeamChampionshipByMeetingKeyAsync(resolvedMeetingKey.Value);
@@ -120,7 +150,13 @@ public class StandingsService : IStandingsService
                 })
                 .ToList();
 
-            _logger.LogInformation("Successfully retrieved {Count} team standings", standings.Count);
+            var teamCacheOptions = new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(CacheExpirationMinutes)
+            };
+            _cache.Set(teamCacheKey, standings, teamCacheOptions);
+
+            _logger.LogDebug("Successfully retrieved {Count} team standings", standings.Count);
             return standings;
         }
         catch (Exception ex)
@@ -132,6 +168,13 @@ public class StandingsService : IStandingsService
 
     private async Task<Dictionary<int, (string Name, string Team)>> GetDriverNameLookupForMeetingAsync(int meetingKey)
     {
+        var lookupCacheKey = $"driver_lookup_{meetingKey}";
+        if (_cache.TryGetValue<Dictionary<int, (string Name, string Team)>>(lookupCacheKey, out var cachedLookup))
+        {
+            _logger.LogDebug("Returning cached driver lookup for meeting {MeetingKey}", meetingKey);
+            return cachedLookup ?? new Dictionary<int, (string Name, string Team)>();
+        }
+
         var sessions = await _openF1Client.GetSessionsAsync(OpenF1SessionName.Race, meetingKey.ToString());
         var session = sessions.OrderBy(s => s.Date_Start ?? DateTime.MinValue).FirstOrDefault();
         if (session == null)
@@ -141,9 +184,17 @@ public class StandingsService : IStandingsService
         }
 
         var drivers = await _openF1Client.GetDriversAsync(session.Session_Key.ToString());
-        return drivers
+        var lookup = drivers
             .GroupBy(d => d.Driver_Number)
             .ToDictionary(g => g.Key, g => (g.First().Full_Name ?? string.Empty, g.First().Team_Name ?? string.Empty));
+
+        var lookupCacheOptions = new MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(CacheExpirationMinutes)
+        };
+        _cache.Set(lookupCacheKey, lookup, lookupCacheOptions);
+
+        return lookup;
     }
 
     private async Task<int?> GetMeetingKeyForYearRoundAsync(int year, int? round)

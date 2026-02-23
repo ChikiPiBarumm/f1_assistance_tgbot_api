@@ -44,7 +44,7 @@ public class CalendarService : ICalendarService
                 return cachedRaces ?? new List<Race>();
             }
 
-            _logger.LogInformation("Getting race calendar for year {Year}", year);
+            _logger.LogDebug("Getting race calendar for year {Year}", year);
 
             var meetings = await _openF1Client.GetMeetingsAsync(year.Value);
 
@@ -59,7 +59,7 @@ public class CalendarService : ICalendarService
                 .Select((m, index) => OpenF1MeetingMapper.ToRace(m, index + 1))
                 .ToList();
 
-            _logger.LogInformation("Successfully mapped {Count} races from OpenF1 data", races.Count);
+            _logger.LogDebug("Successfully mapped {Count} races from OpenF1 data", races.Count);
 
             var isHistorical = year < DateTime.UtcNow.Year;
             var cacheExpiration = isHistorical ? HistoricalCacheExpiration : CurrentSeasonCacheExpiration;

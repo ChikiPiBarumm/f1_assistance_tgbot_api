@@ -3,26 +3,33 @@ using F1_Bot.Application.Interfaces;
 using F1_Bot.Domain.Constants;
 using F1_Bot.Domain.Models;
 using F1_Bot.Infrastructure.OpenF1;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace F1_Bot.Application;
 
 public class RaceResultsService : IRaceResultsService
 {
+    private const int CacheExpirationMinutes = 5;
+    private const string LastRaceSessionInfoCacheKey = "last_race_session_info";
+
     private readonly IOpenF1Client _openF1Client;
     private readonly ICalendarService _calendarService;
     private readonly ISessionService _sessionService;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<RaceResultsService> _logger;
 
     public RaceResultsService(
         IOpenF1Client openF1Client,
         ICalendarService calendarService,
         ISessionService sessionService,
+        IMemoryCache cache,
         ILogger<RaceResultsService> logger)
     {
         _openF1Client = openF1Client;
         _calendarService = calendarService;
         _sessionService = sessionService;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -32,7 +39,7 @@ public class RaceResultsService : IRaceResultsService
         {
             if (year.HasValue)
             {
-                _logger.LogInformation("Getting last race results for year {Year}", year);
+                _logger.LogDebug("Getting last race results for year {Year}", year);
                 var races = await _calendarService.GetRacesAsync(year);
                 var lastRace = races.OrderByDescending(r => r.Date).FirstOrDefault();
 
@@ -71,7 +78,7 @@ public class RaceResultsService : IRaceResultsService
     {
         try
         {
-            _logger.LogInformation("Getting last race meeting info");
+            _logger.LogDebug("Getting last race meeting info");
             var latest = await GetLatestRaceSessionInfoAsync();
             if (latest == null)
             {
@@ -93,6 +100,12 @@ public class RaceResultsService : IRaceResultsService
     /// </summary>
     private async Task<(string sessionKey, int meetingKey, int round, int year)?> GetLatestRaceSessionInfoAsync()
     {
+        if (_cache.TryGetValue<(string, int, int, int)?>(LastRaceSessionInfoCacheKey, out var cached))
+        {
+            _logger.LogDebug("Returning cached last race session info");
+            return cached;
+        }
+
         var sessions = await _openF1Client.GetSessionsAsync(OpenF1SessionName.Race, "latest");
         var latestRaceSession = sessions
             .OrderByDescending(s => s.Date_Start ?? DateTime.MinValue)
@@ -109,18 +122,22 @@ public class RaceResultsService : IRaceResultsService
                 if (race != null)
                 {
                     _logger.LogDebug("Found race session {SessionKey} for meeting {MeetingKey}", latestRaceSession.Session_Key, meetingKey);
-                    return (latestRaceSession.Session_Key.ToString(), meetingKey, race.RoundNumber, y);
+                    var result = (latestRaceSession.Session_Key.ToString(), meetingKey, race.RoundNumber, y);
+                    _cache.Set(LastRaceSessionInfoCacheKey, ((string, int, int, int)?)result, new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(CacheExpirationMinutes) });
+                    return result;
                 }
             }
             _logger.LogWarning("Found session for meeting {MeetingKey} but no matching race in calendar", meetingKey);
             return null;
         }
 
-        _logger.LogInformation("No race session for meeting_key=latest, searching previous meetings by calendar.");
+        _logger.LogDebug("No race session for meeting_key=latest, searching previous meetings by calendar.");
         var found = await FindLastCompletedRaceSessionAsync();
         if (found == null)
             return null;
-        return (found.Value.sessionKey, found.Value.meetingKey, found.Value.round, found.Value.year);
+        var fallbackResult = (found.Value.sessionKey, found.Value.meetingKey, found.Value.round, found.Value.year);
+        _cache.Set(LastRaceSessionInfoCacheKey, ((string, int, int, int)?)fallbackResult, new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(CacheExpirationMinutes) });
+        return fallbackResult;
     }
 
     /// <summary>
@@ -143,7 +160,7 @@ public class RaceResultsService : IRaceResultsService
                 var sessionKey = await _sessionService.GetRaceSessionKeyAsync(race.Id);
                 if (!string.IsNullOrEmpty(sessionKey))
                 {
-                    _logger.LogInformation("Found race session for meeting {MeetingKey} (year {Year}, round {Round})", race.Id, y, race.RoundNumber);
+                    _logger.LogDebug("Found race session for meeting {MeetingKey} (year {Year}, round {Round})", race.Id, y, race.RoundNumber);
                     return (sessionKey, race.Id, race.Name, y, race.RoundNumber);
                 }
             }
@@ -155,7 +172,7 @@ public class RaceResultsService : IRaceResultsService
     {
         try
         {
-            _logger.LogInformation("Getting race results for round {Round}, year {Year}", round, year ?? DateTime.UtcNow.Year);
+            _logger.LogDebug("Getting race results for round {Round}, year {Year}", round, year ?? DateTime.UtcNow.Year);
 
             var races = await _calendarService.GetRacesAsync(year);
             var race = races.FirstOrDefault(r => r.RoundNumber == round);
@@ -186,7 +203,7 @@ public class RaceResultsService : IRaceResultsService
     {
         try
         {
-            _logger.LogInformation("Getting race results for meeting {MeetingKey}", meetingKey);
+            _logger.LogDebug("Getting race results for meeting {MeetingKey}", meetingKey);
 
             var sessionKey = await _sessionService.GetRaceSessionKeyAsync(meetingKey);
             if (string.IsNullOrEmpty(sessionKey))
@@ -206,8 +223,19 @@ public class RaceResultsService : IRaceResultsService
 
     private async Task<List<RaceResult>> GetResultsBySessionKeyAsync(string sessionKey)
     {
-        var results = await _openF1Client.GetSessionResultsAsync(sessionKey);
-        var drivers = await _openF1Client.GetDriversAsync(sessionKey);
+        var resultsCacheKey = $"race_results_{sessionKey}";
+        if (_cache.TryGetValue<List<RaceResult>>(resultsCacheKey, out var cachedResults))
+        {
+            _logger.LogDebug("Returning cached race results for session {SessionKey}", sessionKey);
+            return cachedResults ?? new List<RaceResult>();
+        }
+
+        var resultsTask = _openF1Client.GetSessionResultsAsync(sessionKey);
+        var driversTask = _openF1Client.GetDriversAsync(sessionKey);
+        await Task.WhenAll(resultsTask, driversTask).ConfigureAwait(false);
+
+        var results = await resultsTask;
+        var drivers = await driversTask;
 
         if (results.Count == 0)
         {
@@ -252,7 +280,9 @@ public class RaceResultsService : IRaceResultsService
             })
             .ToList();
 
-        _logger.LogInformation("Successfully retrieved {Count} race results", mapped.Count);
+        _cache.Set(resultsCacheKey, mapped, new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(CacheExpirationMinutes) });
+
+        _logger.LogDebug("Successfully retrieved {Count} race results", mapped.Count);
         return mapped;
     }
 }

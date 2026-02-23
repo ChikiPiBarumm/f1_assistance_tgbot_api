@@ -164,12 +164,16 @@ public class RaceDetailsHandler : IRaceDetailsHandler
 
     private async Task<(string raceText, InlineKeyboardMarkup keyboard)?> GetRaceContentByMeetingKeyAsync(int meetingKey, int round, int year, CancellationToken cancellationToken)
     {
-        var race = await _raceDetailsService.GetRaceByMeetingKeyAsync(meetingKey, round, year);
+        var raceTask = _raceDetailsService.GetRaceByMeetingKeyAsync(meetingKey, round, year);
+        var racesTask = _calendarService.GetRacesAsync(year);
+        await Task.WhenAll(raceTask, racesTask).ConfigureAwait(false);
+
+        var race = await raceTask;
         if (race == null)
             return null;
 
+        var races = await racesTask;
         var raceText = BuildRaceText(race);
-        var races = await _calendarService.GetRacesAsync(year);
         var keyboard = BuildRaceDetailsKeyboard(races.OrderBy(r => r.RoundNumber).ToList(), round, year, race.Status);
         return (raceText, keyboard);
     }

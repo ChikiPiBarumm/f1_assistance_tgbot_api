@@ -40,7 +40,7 @@ public class RaceDetailsService : IRaceDetailsService
                 return cachedRace;
             }
 
-            _logger.LogInformation("Getting race details for round {Round}", round);
+            _logger.LogDebug("Getting race details for round {Round}", round);
 
             var meetings = await _openF1Client.GetMeetingsAsync(year.Value);
             var orderedMeetings = meetings.OrderBy(m => m.Date_Start).ToList();
@@ -90,7 +90,7 @@ public class RaceDetailsService : IRaceDetailsService
                 return cachedRace;
             }
 
-            _logger.LogInformation("Getting race details for meeting {MeetingKey}", meetingKey);
+            _logger.LogDebug("Getting race details for meeting {MeetingKey}", meetingKey);
 
             var meeting = await _openF1Client.GetMeetingByKeyAsync(meetingKey);
 
@@ -138,7 +138,7 @@ public class RaceDetailsService : IRaceDetailsService
                 return cachedRaces ?? new List<RaceDetails>();
             }
 
-            _logger.LogInformation("Getting all races with details for year {Year}", year);
+            _logger.LogDebug("Getting all races with details for year {Year}", year);
 
             var meetings = await _openF1Client.GetMeetingsAsync(year.Value);
             var orderedMeetings = meetings.OrderBy(m => m.Date_Start).ToList();
