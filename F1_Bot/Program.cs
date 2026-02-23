@@ -1,4 +1,5 @@
-using F1_Bot.Services;
+using F1_Bot.Application;
+using F1_Bot.Application.Interfaces;
 using F1_Bot.Infrastructure.OpenF1;
 using F1_Bot.Presentation.Bot;
 using F1_Bot.Presentation.Bot.Handlers;
@@ -45,11 +46,6 @@ builder.Services.AddHttpClient("TelegramBot", client =>
 
 builder.Services.AddSingleton<ITelegramBotClient>(sp =>
 {
-    var botToken = builder.Configuration["TelegramBot:BotToken"];
-    if (string.IsNullOrWhiteSpace(botToken))
-    {
-        throw new InvalidOperationException("Telegram bot token is not configured.");
-    }
     var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
     var httpClient = httpClientFactory.CreateClient("TelegramBot");
     var botOptions = new TelegramBotClientOptions(botToken);
@@ -77,7 +73,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.UseSwaggerUI(options =>
     {
-        options.SwaggerEndpoint("/openapi/v1.json", "F1 Assistance Bot & API v1");
+        options.SwaggerEndpoint("/openapi/v1.json", "F1 Assistance Bot & API");
         options.RoutePrefix = "swagger";
     });
 }

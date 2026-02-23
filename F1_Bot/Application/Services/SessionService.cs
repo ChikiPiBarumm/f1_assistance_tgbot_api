@@ -1,10 +1,12 @@
 using System.Linq;
+using F1_Bot.Application.Interfaces;
+using F1_Bot.Domain.Constants;
 using F1_Bot.Domain.Models;
 using F1_Bot.Infrastructure.OpenF1;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
-namespace F1_Bot.Services;
+namespace F1_Bot.Application;
 
 public class SessionService : ISessionService
 {
@@ -112,7 +114,7 @@ public class SessionService : ISessionService
         {
             _logger.LogDebug("Getting race session key for meeting {MeetingKey}, round {Round}", meetingKey, round);
 
-            var sessions = await _openF1Client.GetSessionsAsync("Race", meetingKey.ToString());
+            var sessions = await _openF1Client.GetSessionsAsync(OpenF1SessionName.Race, meetingKey.ToString());
 
             if (sessions.Count == 0)
             {

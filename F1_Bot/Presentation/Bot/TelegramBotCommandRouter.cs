@@ -1,4 +1,5 @@
 using System.Linq;
+using F1_Bot.Application.Interfaces;
 using F1_Bot.Presentation.Bot.Handlers;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
@@ -15,6 +16,8 @@ public class TelegramBotCommandRouter
     private readonly IStandingsHandler _standingsHandler;
     private readonly IResultsHandler _resultsHandler;
     private readonly IModeHandler _modeHandler;
+    private readonly ICalendarService _calendarService;
+    private readonly ISessionService _sessionService;
     private readonly ITelegramBotClient _botClient;
     private readonly ILogger<TelegramBotCommandRouter> _logger;
 
@@ -26,6 +29,8 @@ public class TelegramBotCommandRouter
         IStandingsHandler standingsHandler,
         IResultsHandler resultsHandler,
         IModeHandler modeHandler,
+        ICalendarService calendarService,
+        ISessionService sessionService,
         ITelegramBotClient botClient,
         ILogger<TelegramBotCommandRouter> logger)
     {
@@ -36,6 +41,8 @@ public class TelegramBotCommandRouter
         _standingsHandler = standingsHandler;
         _resultsHandler = resultsHandler;
         _modeHandler = modeHandler;
+        _calendarService = calendarService;
+        _sessionService = sessionService;
         _botClient = botClient;
         _logger = logger;
     }
@@ -57,8 +64,7 @@ public class TelegramBotCommandRouter
 
         try
         {
-            var normalizedText = NormalizeCommandText(messageText);
-            var parts = normalizedText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var parts = messageText.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
             var command = parts[0].ToLowerInvariant();
             var arguments = parts.Skip(1).ToArray();
 
@@ -127,10 +133,7 @@ public class TelegramBotCommandRouter
 
                 case "/schedule":
                 case "/sessions":
-                    await _messageSender.SendMessageAsync(
-                        message.Chat.Id,
-                        "Work in progress.",
-                        linkedCts.Token);
+                    await HandleScheduleCommandAsync(message, arguments, linkedCts.Token);
                     break;
 
                 case "/calendar":
@@ -170,11 +173,6 @@ public class TelegramBotCommandRouter
                 // Ignore
             }
         }
-    }
-
-    private static string NormalizeCommandText(string messageText)
-    {
-        return messageText.Trim();
     }
 
     private async Task HandleCallbackQueryAsync(Telegram.Bot.Types.CallbackQuery callbackQuery, CancellationToken cancellationToken)
@@ -261,5 +259,41 @@ public class TelegramBotCommandRouter
                 await _startHandler.HandleStartAsync(message, cancellationToken);
                 break;
         }
+    }
+
+    private async Task HandleScheduleCommandAsync(Message message, string[] arguments, CancellationToken cancellationToken)
+    {
+        F1_Bot.Domain.Models.RaceSchedule? schedule = null;
+        if (arguments.Length > 0 && int.TryParse(arguments[0], out var round) && round >= 1)
+        {
+            schedule = await _sessionService.GetRaceScheduleAsync(round);
+        }
+        else
+        {
+            var nextRace = await _calendarService.GetNextRaceAsync();
+            if (nextRace != null)
+                schedule = await _sessionService.GetRaceScheduleByMeetingKeyAsync(nextRace.Id);
+        }
+
+        if (schedule == null || schedule.Sessions.Count == 0)
+        {
+            await _messageSender.SendMessageAsync(
+                message.Chat.Id,
+                "❌ No session schedule available. Try /next_race or /schedule followed by a round number (e.g. /schedule 5).",
+                cancellationToken: cancellationToken);
+            return;
+        }
+
+        var lines = new List<string> { $"📅 {schedule.RaceName}", "" };
+        foreach (var s in schedule.Sessions)
+        {
+            var timeStr = s.StartTime.HasValue ? s.StartTime.Value.ToString("ddd dd MMM HH:mm UTC") : "TBC";
+            lines.Add($"• {s.SessionName} ({s.SessionType}): {timeStr}");
+        }
+
+        await _messageSender.SendMessageAsync(
+            message.Chat.Id,
+            string.Join("\n", lines),
+            cancellationToken: cancellationToken);
     }
 }

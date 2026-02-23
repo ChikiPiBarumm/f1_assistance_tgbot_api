@@ -1,4 +1,6 @@
-﻿namespace F1_Bot.Domain.Models;
+using F1_Bot.Domain.Constants;
+
+namespace F1_Bot.Domain.Models;
 
 public class Race
 {
@@ -24,6 +26,6 @@ public class Race
     // Date of the main race.
     public DateTime Date { get; set; }
 
-    // Simple status flag for v1: "Upcoming" or "Completed"
-    public string Status { get; set; } = "Upcoming";
+    /// <summary>Race status: <see cref="RaceStatus.Upcoming"/> or <see cref="RaceStatus.Completed"/>.</summary>
+    public string Status { get; set; } = RaceStatus.Upcoming;
 }

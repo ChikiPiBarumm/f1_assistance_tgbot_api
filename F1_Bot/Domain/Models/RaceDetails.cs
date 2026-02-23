@@ -1,5 +1,11 @@
+using F1_Bot.Domain.Constants;
+
 namespace F1_Bot.Domain.Models;
 
+/// <summary>
+/// Race metadata (round, circuit, date, status).
+/// For session schedule (FP1, Qualifying, Race times), use <see cref="F1_Bot.Application.Interfaces.ISessionService"/>.
+/// </summary>
 public class RaceDetails
 {
     public int Id { get; set; }
@@ -16,7 +22,5 @@ public class RaceDetails
 
     public DateTime Date { get; set; }
 
-    public string Status { get; set; } = "Upcoming";
-
-    public List<Session> Sessions { get; set; } = new();
+    public string Status { get; set; } = RaceStatus.Upcoming;
 }

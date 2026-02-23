@@ -1,6 +1,6 @@
 using F1_Bot.Domain.Models;
 
-namespace F1_Bot.Services;
+namespace F1_Bot.Application.Interfaces;
 
 public interface IStandingsService
 {

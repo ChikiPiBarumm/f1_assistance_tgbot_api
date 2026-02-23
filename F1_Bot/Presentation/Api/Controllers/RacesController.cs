@@ -1,27 +1,24 @@
-using F1_Bot.Services;
+using F1_Bot.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
-namespace F1_Bot.Presentation.Api.Controllers.V2;
+namespace F1_Bot.Presentation.Api.Controllers;
 
 [ApiController]
-[Route("api/v2/[controller]")]
+[Route("api/[controller]")]
 public class RacesController : ControllerBase
 {
     private readonly IRaceDetailsService _raceDetailsService;
     private readonly ISessionService _sessionService;
     private readonly IRaceResultsService _raceResultsService;
-    private readonly ICalendarService _calendarService;
 
     public RacesController(
         IRaceDetailsService raceDetailsService,
         ISessionService sessionService,
-        IRaceResultsService raceResultsService,
-        ICalendarService calendarService)
+        IRaceResultsService raceResultsService)
     {
         _raceDetailsService = raceDetailsService;
         _sessionService = sessionService;
         _raceResultsService = raceResultsService;
-        _calendarService = calendarService;
     }
 
     [HttpGet]
@@ -98,14 +95,13 @@ public class RacesController : ControllerBase
     [HttpGet("next")]
     public async Task<ActionResult> GetNextRace()
     {
-        var nextRace = await _calendarService.GetNextRaceAsync();
+        var raceDetails = await _raceDetailsService.GetNextRaceDetailsAsync();
 
-        if (nextRace is null)
+        if (raceDetails is null)
         {
             return NotFound(new { message = "No upcoming race found" });
         }
 
-        var raceDetails = await _raceDetailsService.GetRaceByRoundAsync(nextRace.RoundNumber);
         return Ok(raceDetails);
     }
 }

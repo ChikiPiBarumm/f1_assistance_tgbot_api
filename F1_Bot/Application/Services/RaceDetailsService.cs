@@ -1,24 +1,28 @@
 using System.Linq;
+using F1_Bot.Application.Interfaces;
 using F1_Bot.Domain.Models;
 using F1_Bot.Infrastructure.OpenF1;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
-namespace F1_Bot.Services;
+namespace F1_Bot.Application;
 
 public class RaceDetailsService : IRaceDetailsService
 {
     private readonly IOpenF1Client _openF1Client;
+    private readonly ICalendarService _calendarService;
     private readonly IMemoryCache _cache;
     private readonly ILogger<RaceDetailsService> _logger;
     private static readonly TimeSpan CacheExpiration = TimeSpan.FromMinutes(5);
 
     public RaceDetailsService(
         IOpenF1Client openF1Client,
+        ICalendarService calendarService,
         IMemoryCache cache,
         ILogger<RaceDetailsService> logger)
     {
         _openF1Client = openF1Client;
+        _calendarService = calendarService;
         _cache = cache;
         _logger = logger;
     }
@@ -56,18 +60,7 @@ public class RaceDetailsService : IRaceDetailsService
                 return null;
             }
 
-            var raceDetails = new RaceDetails
-            {
-                Id = meeting.Meeting_Key,
-                Name = meeting.Meeting_Name,
-                CircuitName = meeting.Location,
-                City = meeting.Location,
-                Country = meeting.Country_Name,
-                RoundNumber = round,
-                Date = meeting.Date_Start,
-                Status = meeting.Date_End < DateTime.UtcNow ? "Completed" : "Upcoming",
-                Sessions = new List<Session>()
-            };
+            var raceDetails = OpenF1MeetingMapper.ToRaceDetails(meeting, round);
 
             var cacheOptions = new MemoryCacheEntryOptions
             {
@@ -107,18 +100,7 @@ public class RaceDetailsService : IRaceDetailsService
                 return null;
             }
 
-            var raceDetails = new RaceDetails
-            {
-                Id = meeting.Meeting_Key,
-                Name = meeting.Meeting_Name,
-                CircuitName = meeting.Location,
-                City = meeting.Location,
-                Country = meeting.Country_Name,
-                RoundNumber = round,
-                Date = meeting.Date_Start,
-                Status = meeting.Date_End < DateTime.UtcNow ? "Completed" : "Upcoming",
-                Sessions = new List<Session>()
-            };
+            var raceDetails = OpenF1MeetingMapper.ToRaceDetails(meeting, round);
 
             var cacheOptions = new MemoryCacheEntryOptions
             {
@@ -133,6 +115,14 @@ public class RaceDetailsService : IRaceDetailsService
             _logger.LogError(ex, "Error while getting race details for meeting {MeetingKey}", meetingKey);
             return null;
         }
+    }
+
+    public async Task<RaceDetails?> GetNextRaceDetailsAsync(int? year = null)
+    {
+        var nextRace = await _calendarService.GetNextRaceAsync(year);
+        if (nextRace == null)
+            return null;
+        return await GetRaceByRoundAsync(nextRace.RoundNumber, nextRace.Date.Year);
     }
 
     public async Task<List<RaceDetails>> GetAllRacesWithDetailsAsync(int? year = null)
@@ -157,19 +147,7 @@ public class RaceDetailsService : IRaceDetailsService
 
             for (int i = 0; i < orderedMeetings.Count; i++)
             {
-                var meeting = orderedMeetings[i];
-                racesDetails.Add(new RaceDetails
-                {
-                    Id = meeting.Meeting_Key,
-                    Name = meeting.Meeting_Name,
-                    CircuitName = meeting.Location,
-                    City = meeting.Location,
-                    Country = meeting.Country_Name,
-                    RoundNumber = i + 1,
-                    Date = meeting.Date_Start,
-                    Status = meeting.Date_End < DateTime.UtcNow ? "Completed" : "Upcoming",
-                    Sessions = new List<Session>()
-                });
+                racesDetails.Add(OpenF1MeetingMapper.ToRaceDetails(orderedMeetings[i], i + 1));
             }
 
             var cacheOptions = new MemoryCacheEntryOptions

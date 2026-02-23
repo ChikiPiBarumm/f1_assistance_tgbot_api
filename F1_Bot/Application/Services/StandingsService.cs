@@ -1,9 +1,11 @@
 using System.Linq;
+using F1_Bot.Application.Interfaces;
+using F1_Bot.Domain.Constants;
 using F1_Bot.Domain.Models;
 using F1_Bot.Infrastructure.OpenF1;
 using Microsoft.Extensions.Logging;
 
-namespace F1_Bot.Services;
+namespace F1_Bot.Application;
 
 public class StandingsService : IStandingsService
 {
@@ -130,7 +132,7 @@ public class StandingsService : IStandingsService
 
     private async Task<Dictionary<int, (string Name, string Team)>> GetDriverNameLookupForMeetingAsync(int meetingKey)
     {
-        var sessions = await _openF1Client.GetSessionsAsync("Race", meetingKey.ToString());
+        var sessions = await _openF1Client.GetSessionsAsync(OpenF1SessionName.Race, meetingKey.ToString());
         var session = sessions.OrderBy(s => s.Date_Start ?? DateTime.MinValue).FirstOrDefault();
         if (session == null)
         {

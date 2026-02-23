@@ -1,4 +1,4 @@
-using F1_Bot.Services;
+using F1_Bot.Application.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

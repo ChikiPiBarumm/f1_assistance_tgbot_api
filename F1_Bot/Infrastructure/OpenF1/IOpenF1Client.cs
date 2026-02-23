@@ -6,16 +6,8 @@ public interface IOpenF1Client
 
     Task<OpenF1MeetingDto?> GetMeetingByKeyAsync(int meetingKey, CancellationToken cancellationToken = default);
 
-    Task<List<OpenF1ChampionshipDriverDto>> GetDriverChampionshipAsync(
-        string sessionKey,
-        CancellationToken cancellationToken = default);
-
     Task<List<OpenF1ChampionshipDriverDto>> GetDriverChampionshipByMeetingKeyAsync(
         int meetingKey,
-        CancellationToken cancellationToken = default);
-
-    Task<List<OpenF1ChampionshipTeamDto>> GetTeamChampionshipAsync(
-        string sessionKey,
         CancellationToken cancellationToken = default);
 
     Task<List<OpenF1ChampionshipTeamDto>> GetTeamChampionshipByMeetingKeyAsync(
@@ -28,7 +20,7 @@ public interface IOpenF1Client
 
     // New: get sessions (e.g., to find latest race session)
     Task<List<OpenF1SessionDto>> GetSessionsAsync(
-        string sessionType,
+        string sessionName,
         string meetingKey,
         CancellationToken cancellationToken = default);
 

@@ -1,10 +1,10 @@
-using F1_Bot.Services;
+using F1_Bot.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
-namespace F1_Bot.Presentation.Api.Controllers.V1;
+namespace F1_Bot.Presentation.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/[controller]")]
+[Route("api/[controller]")]
 public class StandingsController : ControllerBase
 {
     private readonly IStandingsService _standingsService;

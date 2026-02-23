@@ -1,7 +1,8 @@
+using F1_Bot.Application.Interfaces;
 using F1_Bot.Domain.Models;
 using Microsoft.Extensions.Logging;
 
-namespace F1_Bot.Services;
+namespace F1_Bot.Application;
 
 public class UserStateService : IUserStateService
 {

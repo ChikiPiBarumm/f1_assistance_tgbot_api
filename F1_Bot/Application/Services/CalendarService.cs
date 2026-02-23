@@ -1,9 +1,11 @@
+using F1_Bot.Application.Interfaces;
+using F1_Bot.Domain.Constants;
 using F1_Bot.Domain.Models;
 using F1_Bot.Infrastructure.OpenF1;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
-namespace F1_Bot.Services;
+namespace F1_Bot.Application;
 
 public class CalendarService : ICalendarService
 {
@@ -12,7 +14,6 @@ public class CalendarService : ICalendarService
     private readonly ILogger<CalendarService> _logger;
     private static readonly TimeSpan CurrentSeasonCacheExpiration = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan HistoricalCacheExpiration = TimeSpan.FromHours(1);
-    private const int FirstF1Season = 2023;
 
     public CalendarService(IOpenF1Client openF1Client, IMemoryCache cache, ILogger<CalendarService> logger)
     {
@@ -21,11 +22,7 @@ public class CalendarService : ICalendarService
         _logger = logger;
     }
 
-    public static bool IsValidYear(int year)
-    {
-        var currentYear = DateTime.UtcNow.Year;
-        return year >= FirstF1Season && year <= currentYear + 1;
-    }
+    public static bool IsValidYear(int year) => SeasonConstants.IsValidYear(year);
 
     public async Task<List<Race>> GetRacesAsync(int? year = null)
     {
@@ -35,7 +32,7 @@ public class CalendarService : ICalendarService
 
             if (!IsValidYear(year.Value))
             {
-                _logger.LogWarning("Invalid year {Year}. Valid range: {FirstYear}-{LastYear}", year, FirstF1Season, DateTime.UtcNow.Year + 1);
+                _logger.LogWarning("Invalid year {Year}. Valid range: {FirstYear}-{LastYear}", year, SeasonConstants.FirstF1Season, DateTime.UtcNow.Year + 1);
                 return new List<Race>();
             }
 
@@ -59,17 +56,7 @@ public class CalendarService : ICalendarService
 
             var races = meetings
                 .OrderBy(m => m.Date_Start)
-                .Select((m, index) => new Race
-                {
-                    Id = m.Meeting_Key,
-                    Name = m.Meeting_Name,
-                    CircuitName = m.Location,
-                    City = m.Location,
-                    Country = m.Country_Name,
-                    RoundNumber = index + 1,
-                    Date = m.Date_Start,
-                    Status = m.Date_End < DateTime.UtcNow ? "Completed" : "Upcoming"
-                })
+                .Select((m, index) => OpenF1MeetingMapper.ToRace(m, index + 1))
                 .ToList();
 
             _logger.LogInformation("Successfully mapped {Count} races from OpenF1 data", races.Count);
@@ -101,7 +88,7 @@ public class CalendarService : ICalendarService
             var races = await GetRacesAsync(year);
 
             var nextRace = races
-                .Where(r => r.Status == "Upcoming")
+                .Where(r => r.Status == RaceStatus.Upcoming)
                 .OrderBy(r => r.Date)
                 .FirstOrDefault();
 

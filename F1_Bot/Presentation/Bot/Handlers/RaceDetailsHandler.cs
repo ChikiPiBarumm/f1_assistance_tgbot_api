@@ -1,6 +1,9 @@
 using System.Linq;
+using F1_Bot.Application.Interfaces;
+using F1_Bot.Domain.Constants;
 using F1_Bot.Domain.Models;
-using F1_Bot.Services;
+using F1_Bot.Presentation.Bot;
+using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -16,6 +19,7 @@ public class RaceDetailsHandler : IRaceDetailsHandler
     private readonly IArgumentParser _argumentParser;
     private readonly ITelegramBotClient _botClient;
     private readonly IResultsHandler _resultsHandler;
+    private readonly ILogger<RaceDetailsHandler> _logger;
 
     public RaceDetailsHandler(
         MessageSender messageSender,
@@ -24,7 +28,8 @@ public class RaceDetailsHandler : IRaceDetailsHandler
         IRaceResultsService raceResultsService,
         IArgumentParser argumentParser,
         ITelegramBotClient botClient,
-        IResultsHandler resultsHandler)
+        IResultsHandler resultsHandler,
+        ILogger<RaceDetailsHandler> logger)
     {
         _messageSender = messageSender;
         _calendarService = calendarService;
@@ -33,6 +38,7 @@ public class RaceDetailsHandler : IRaceDetailsHandler
         _argumentParser = argumentParser;
         _botClient = botClient;
         _resultsHandler = resultsHandler;
+        _logger = logger;
     }
 
     public async Task HandleNextRaceAsync(Message message, string[] arguments, CancellationToken cancellationToken)
@@ -83,7 +89,7 @@ public class RaceDetailsHandler : IRaceDetailsHandler
         {
             await _messageSender.SendMessageAsync(
                 message.Chat.Id,
-                "❌ Please provide a valid round number.\nExample: /race 5\nOr: /race 5 2023",
+                $"❌ Please provide a valid round number.\nExample: /race 5\nOr: /race 5 {SeasonConstants.FirstF1Season}",
                 cancellationToken: cancellationToken);
             return;
         }
@@ -173,14 +179,7 @@ public class RaceDetailsHandler : IRaceDetailsHandler
         switch (action)
         {
             case "back_to_menu":
-                try
-                {
-                    await _botClient.DeleteMessage(message.Chat.Id, message.MessageId, cancellationToken);
-                }
-                catch
-                {
-                    // Non-critical
-                }
+                await TelegramBotHelpers.TryDeleteMessageAsync(_botClient, message.Chat.Id, message.MessageId, _logger, "race details message", cancellationToken);
                 break;
             case "results" when int.TryParse(meetingKeyValue, out var meetingKey):
             {
@@ -224,7 +223,7 @@ public class RaceDetailsHandler : IRaceDetailsHandler
         {
             keyboardRows.Add(navButtons.ToArray());
         }
-        if (string.Equals(raceStatus, "Completed", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(raceStatus, RaceStatus.Completed, StringComparison.OrdinalIgnoreCase))
         {
             var currentRace = orderedRaces.FirstOrDefault(r => r.RoundNumber == round);
             var meetingKey = currentRace?.Id ?? 0;

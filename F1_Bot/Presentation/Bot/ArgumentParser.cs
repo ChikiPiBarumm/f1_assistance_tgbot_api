@@ -1,11 +1,7 @@
-using F1_Bot.Services;
+using F1_Bot.Application.Interfaces;
+using F1_Bot.Domain.Constants;
 
 namespace F1_Bot.Presentation.Bot;
-
-public interface IArgumentParser
-{
-    Task<(int? year, int? round)> ParseYearRoundAsync(string[] arguments, long userId, CancellationToken cancellationToken = default);
-}
 
 public class ArgumentParser : IArgumentParser
 {
@@ -35,11 +31,11 @@ public class ArgumentParser : IArgumentParser
         {
             if (int.TryParse(arguments[0], out var value))
             {
-                if (value >= 2023 && value <= DateTime.UtcNow.Year + 1)
+                if (SeasonConstants.IsValidYear(value))
                 {
                     year = value;
                 }
-                else if (value >= 1 && value <= 24)
+                else if (value >= 1 && value <= SeasonConstants.MaxRoundsPerSeason)
                 {
                     round = value;
                     var userState = await _userStateService.GetUserStateAsync(userId);
@@ -56,24 +52,24 @@ public class ArgumentParser : IArgumentParser
             int secondVal = 0;
             var secondParsed = !string.IsNullOrWhiteSpace(arguments[1]) && int.TryParse(arguments[1], out secondVal);
 
-            if (firstParsed && first >= 2023 && first <= DateTime.UtcNow.Year + 1)
+            if (firstParsed && SeasonConstants.IsValidYear(first))
             {
                 year = first;
                 if (secondParsed)
                 {
-                    if (secondVal >= 1 && secondVal <= 24)
+                    if (secondVal >= 1 && secondVal <= SeasonConstants.MaxRoundsPerSeason)
                         round = secondVal;
-                    else if (secondVal >= 2023 && secondVal <= DateTime.UtcNow.Year + 1)
+                    else if (SeasonConstants.IsValidYear(secondVal))
                     {
                         year = secondVal;
-                        round = first >= 1 && first <= 24 ? first : null;
+                        round = first >= 1 && first <= SeasonConstants.MaxRoundsPerSeason ? first : null;
                     }
                 }
             }
-            else if (firstParsed && secondParsed && secondVal >= 2023 && secondVal <= DateTime.UtcNow.Year + 1)
+            else if (firstParsed && secondParsed && SeasonConstants.IsValidYear(secondVal))
             {
                 year = secondVal;
-                round = first >= 1 && first <= 24 ? first : null;
+                round = first >= 1 && first <= SeasonConstants.MaxRoundsPerSeason ? first : null;
             }
         }
 

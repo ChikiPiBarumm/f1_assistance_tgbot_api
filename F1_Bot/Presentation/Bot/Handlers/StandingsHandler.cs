@@ -1,4 +1,5 @@
-using F1_Bot.Services;
+using F1_Bot.Application.Interfaces;
+using F1_Bot.Presentation.Bot;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -81,48 +82,21 @@ public class StandingsHandler : IStandingsHandler
         int? meetingKey = arguments.Length > 2 && int.TryParse(arguments[2], out var mk) ? mk : null;
         var standings = await _standingsService.GetDriverStandingsAsync(year, round, meetingKey);
 
-        if (standings.Count == 0)
-        {
-            await _messageSender.SendMessageAsync(
-                message.Chat.Id,
-                "❌ No driver standings available.",
-                cancellationToken: cancellationToken);
-            return;
-        }
-
-        var effectiveYear = year ?? DateTime.UtcNow.Year;
-        var headingSuffix = await GetStandingsHeadingSuffixAsync(effectiveYear, round, meetingKey, cancellationToken);
-
-        var standingsText = $"🏆 Driver Championship Standings {effectiveYear}{headingSuffix}\n\n";
-        foreach (var standing in standings.Take(10))
-        {
-            var driverLabel = string.IsNullOrWhiteSpace(standing.DriverName) ? $"#{standing.DriverNumber}" : standing.DriverName;
-            standingsText += $"{standing.Position}. {driverLabel} - {standing.Points} pts\n";
-        }
-
-        var inlineKeyboard = BuildStandingsBackKeyboard();
-
-        try
-        {
-            await _messageSender.SendMessageAsync(
-                message.Chat.Id,
-                standingsText,
-                inlineKeyboard,
-                cancellationToken: cancellationToken);
-        }
-        catch (TaskCanceledException ex)
-        {
-            _logger.LogError(ex, "Timeout sending driver standings to user {UserId}", message.From?.Id);
-            await _messageSender.SendMessageAsync(
-                message.Chat.Id,
-                "❌ Request timed out. Please try again later.",
-                cancellationToken: cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error sending driver standings to user {UserId}", message.From?.Id);
-            throw;
-        }
+        await SendStandingsMessageAsync(
+            message,
+            year ?? DateTime.UtcNow.Year,
+            round,
+            meetingKey,
+            "❌ No driver standings available.",
+            "🏆 Driver Championship Standings",
+            standings,
+            s =>
+            {
+                var driverLabel = string.IsNullOrWhiteSpace(s.DriverName) ? $"#{s.DriverNumber}" : s.DriverName;
+                return $"{s.Position}. {driverLabel} - {s.Points} pts";
+            },
+            "driver standings",
+            cancellationToken);
     }
 
     public async Task HandleTeamStandingsAsync(Message message, string[] arguments, CancellationToken cancellationToken)
@@ -131,24 +105,40 @@ public class StandingsHandler : IStandingsHandler
         int? meetingKey = arguments.Length > 2 && int.TryParse(arguments[2], out var mk) ? mk : null;
         var standings = await _standingsService.GetTeamStandingsAsync(year, round, meetingKey);
 
+        await SendStandingsMessageAsync(
+            message,
+            year ?? DateTime.UtcNow.Year,
+            round,
+            meetingKey,
+            "❌ No team standings available.",
+            "🏆 Constructor Championship Standings",
+            standings,
+            s => $"{s.Position}. {s.TeamName} - {s.Points} pts",
+            "team standings",
+            cancellationToken);
+    }
+
+    private async Task SendStandingsMessageAsync<T>(
+        Message message,
+        int effectiveYear,
+        int? round,
+        int? meetingKey,
+        string emptyMessage,
+        string titlePrefix,
+        List<T> standings,
+        Func<T, string> formatLine,
+        string logContext,
+        CancellationToken cancellationToken)
+    {
         if (standings.Count == 0)
         {
-            await _messageSender.SendMessageAsync(
-                message.Chat.Id,
-                "❌ No team standings available.",
-                cancellationToken: cancellationToken);
+            await _messageSender.SendMessageAsync(message.Chat.Id, emptyMessage, cancellationToken: cancellationToken);
             return;
         }
 
-        var effectiveYear = year ?? DateTime.UtcNow.Year;
         var headingSuffix = await GetStandingsHeadingSuffixAsync(effectiveYear, round, meetingKey, cancellationToken);
-
-        var standingsText = $"🏆 Constructor Championship Standings {effectiveYear}{headingSuffix}\n\n";
-        foreach (var standing in standings.Take(10))
-        {
-            standingsText += $"{standing.Position}. {standing.TeamName} - {standing.Points} pts\n";
-        }
-
+        var standingsText = $"{titlePrefix} {effectiveYear}{headingSuffix}\n\n" +
+            string.Join("\n", standings.Take(10).Select(formatLine));
         var inlineKeyboard = BuildStandingsBackKeyboard();
 
         try
@@ -161,7 +151,7 @@ public class StandingsHandler : IStandingsHandler
         }
         catch (TaskCanceledException ex)
         {
-            _logger.LogError(ex, "Timeout sending team standings to user {UserId}", message.From?.Id);
+            _logger.LogError(ex, "Timeout sending {Context} to user {UserId}", logContext, message.From?.Id);
             await _messageSender.SendMessageAsync(
                 message.Chat.Id,
                 "❌ Request timed out. Please try again later.",
@@ -169,7 +159,7 @@ public class StandingsHandler : IStandingsHandler
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error sending team standings to user {UserId}", message.From?.Id);
+            _logger.LogError(ex, "Error sending {Context} to user {UserId}", logContext, message.From?.Id);
             throw;
         }
     }
@@ -191,21 +181,11 @@ public class StandingsHandler : IStandingsHandler
                 break;
             }
             case "byround":
-                await _messageSender.SendMessageAsync(
-                    message.Chat.Id,
-                    "Work in progress.",
-                    cancellationToken: cancellationToken);
+                await ShowStandingsChoiceAsync(message, cancellationToken);
                 break;
             case "back":
             case "choice_back":
-                try
-                {
-                    await _botClient.DeleteMessage(message.Chat.Id, message.MessageId, cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Could not delete standings message");
-                }
+                await TelegramBotHelpers.TryDeleteMessageAsync(_botClient, message.Chat.Id, message.MessageId, _logger, "standings message", cancellationToken);
                 break;
         }
     }

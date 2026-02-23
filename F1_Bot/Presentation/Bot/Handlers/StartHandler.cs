@@ -1,5 +1,4 @@
-using F1_Bot.Services;
-using Microsoft.Extensions.Logging;
+using F1_Bot.Application.Interfaces;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
 
@@ -9,16 +8,13 @@ public class StartHandler : IStartHandler
 {
     private readonly MessageSender _messageSender;
     private readonly IUserStateService _userStateService;
-    private readonly ILogger<StartHandler> _logger;
 
     public StartHandler(
         MessageSender messageSender,
-        IUserStateService userStateService,
-        ILogger<StartHandler> logger)
+        IUserStateService userStateService)
     {
         _messageSender = messageSender;
         _userStateService = userStateService;
-        _logger = logger;
     }
 
     public async Task HandleStartAsync(Message message, CancellationToken cancellationToken)

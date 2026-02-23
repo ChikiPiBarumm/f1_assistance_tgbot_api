@@ -1,5 +1,6 @@
+using F1_Bot.Application.Interfaces;
+using F1_Bot.Domain.Constants;
 using F1_Bot.Domain.Models;
-using F1_Bot.Services;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -28,16 +29,16 @@ public class ModeHandler : IModeHandler
         {
             await _messageSender.SendMessageAsync(
                 message.Chat.Id,
-                "❌ Please provide a valid year.\nExample: /history 2023",
+                $"❌ Please provide a valid year.\nExample: /history {SeasonConstants.FirstF1Season}",
                 cancellationToken: cancellationToken);
             return;
         }
 
-        if (!CalendarService.IsValidYear(year))
+        if (!SeasonConstants.IsValidYear(year))
         {
             await _messageSender.SendMessageAsync(
                 message.Chat.Id,
-                $"❌ Invalid year {year}. Valid range: 2023-{DateTime.UtcNow.Year + 1}",
+                $"❌ Invalid year {year}. Valid range: {SeasonConstants.FirstF1Season}-{DateTime.UtcNow.Year + 1}",
                 cancellationToken: cancellationToken);
             return;
         }
@@ -106,7 +107,7 @@ public class ModeHandler : IModeHandler
                 }
 
                 var years = Enumerable.Range(baseYear - 4, 5)
-                    .Where(y => CalendarService.IsValidYear(y) && y <= maxHistoryYear)
+                    .Where(y => SeasonConstants.IsValidYear(y) && y <= maxHistoryYear)
                     .OrderByDescending(y => y)
                     .ToList();
 
@@ -143,7 +144,7 @@ public class ModeHandler : IModeHandler
                 var currentYear = DateTime.UtcNow.Year;
                 var maxHistoryYear = currentYear - 1;
 
-                if (!CalendarService.IsValidYear(historyYear) || historyYear > maxHistoryYear)
+                if (!SeasonConstants.IsValidYear(historyYear) || historyYear > maxHistoryYear)
                 {
                     await _botClient.EditMessageText(
                         chatId: message.Chat.Id,
